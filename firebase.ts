@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getAnalytics } from "firebase/analytics";
 import firebaseConfig from './firebase-applet-config.json';
@@ -59,9 +59,12 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 export const signInWithGoogle = async () => {
   const provider = new GoogleAuthProvider();
   try {
-    await signInWithPopup(auth, provider);
+    await setPersistence(auth, browserLocalPersistence);
+    const result = await signInWithPopup(auth, provider);
+    return result.user;
   } catch (error) {
     console.error('Error signing in with Google', error);
+    throw error;
   }
 };
 

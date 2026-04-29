@@ -219,7 +219,18 @@ export const getHighestShikshan = (trainings: any[] | undefined): string | null 
 };
 
 function cleanData(data: any): any {
-  return JSON.parse(JSON.stringify(data));
+  if (data === undefined || data === null) return data;
+  if (Array.isArray(data)) return data.map(cleanData);
+  if (typeof data === 'object') {
+    const cleaned: any = {};
+    for (const key in data) {
+      if (data[key] !== undefined) {
+         cleaned[key] = cleanData(data[key]);
+      }
+    }
+    return cleaned;
+  }
+  return data;
 }
 
 function useDataSync<T extends {id: string}>(
@@ -229,66 +240,72 @@ function useDataSync<T extends {id: string}>(
   appUser: any
 ) {
   const isInternalUpdate = useRef(false);
-  const prevData = useRef<T[]>(localData);
-  const firstSyncDone = useRef(false);
+  const prevData = useRef<T[] | null>(null);
+  const isFirstLoad = useRef(true);
 
   useEffect(() => {
     if (!appUser?.uid) return;
-    const unsub = onSnapshot(collection(db, collectionName), (snap) => {
+    
+    console.log(`[useDataSync] Subscribing to ${collectionName}...`);
+    const unsub = onSnapshot(collection(db, collectionName), async (snap) => {
       const data = snap.docs.map(d => d.data() as T);
+      console.log(`[useDataSync] ${collectionName} received snapshot with ${data.length} items`);
       
-      if (!firstSyncDone.current) {
-        if (data.length === 0 && localData && localData.length > 0) {
-          const syncLocalData = async () => {
-             for (const item of localData) {
-               if (item.id) {
-                 await setDoc(doc(db, collectionName, item.id), cleanData(item), {merge: true}).catch(e => handleFirestoreError(e, OperationType.WRITE, collectionName));
-               }
-             }
-          };
-          syncLocalData();
-          firstSyncDone.current = true;
-          return;
+      // If collection is empty but we have local initial data, populate it FIRST
+      if (isFirstLoad.current && data.length === 0 && localData && localData.length > 0) {
+        console.log(`[useDataSync] ${collectionName} is empty in Firebase. Populating with ${localData.length} initial items...`);
+        for (const item of localData) {
+          if (item.id) {
+            await setDoc(doc(db, collectionName, item.id), cleanData(item), {merge: true})
+              .catch(e => handleFirestoreError(e, OperationType.WRITE, `${collectionName}/${item.id}`));
+          }
         }
-        firstSyncDone.current = true;
+        isFirstLoad.current = false;
+        return; // The setDoc calls will re-trigger onSnapshot
       }
 
+      isFirstLoad.current = false;
       isInternalUpdate.current = true;
       setLocalData(data);
-      // Reset safely after render
+      
       setTimeout(() => {
         isInternalUpdate.current = false;
         prevData.current = data;
       }, 50);
     }, (error) => {
+      console.error(`[useDataSync] Error in ${collectionName}:`, error);
       handleFirestoreError(error, OperationType.LIST, collectionName);
     });
+
     return () => unsub();
-  }, [appUser, collectionName, setLocalData]);
+  }, [appUser, collectionName]); // Do NOT depend on setLocalData/localData
 
   useEffect(() => {
-    if (!appUser?.uid) return;
-    if (isInternalUpdate.current) {
-       prevData.current = localData;
-       return;
-    }
+    if (!appUser?.uid || isFirstLoad.current || isInternalUpdate.current || !prevData.current) return;
 
+    console.log(`[useDataSync] Local changes detected in ${collectionName}, computing diff...`);
     const oldMap = new Map((prevData.current || []).map(i => [i.id, i]));
     const newMap = new Map((localData || []).map(i => [i.id, i]));
 
     for (const [id, item] of newMap) {
       if (!id) continue;
       const oldItem = oldMap.get(id);
-      if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
-        setDoc(doc(db, collectionName, id), cleanData(item), {merge: true}).catch(e => handleFirestoreError(e, OperationType.WRITE, `${collectionName}/${id}`));
+      if (!oldItem || JSON.stringify(cleanData(oldItem)) !== JSON.stringify(cleanData(item))) {
+        console.log(`[useDataSync] Writing updated/new item to ${collectionName}/${id}`);
+        setDoc(doc(db, collectionName, id), cleanData(item), {merge: true})
+          .catch(e => handleFirestoreError(e, OperationType.WRITE, `${collectionName}/${id}`));
       }
     }
+    
     for (const id of oldMap.keys()) {
       if (!id) continue;
       if (!newMap.has(id)) {
-        deleteDoc(doc(db, collectionName, id)).catch(e => handleFirestoreError(e, OperationType.DELETE, `${collectionName}/${id}`));
+        console.log(`[useDataSync] Deleting item ${collectionName}/${id}`);
+        deleteDoc(doc(db, collectionName, id))
+          .catch(e => handleFirestoreError(e, OperationType.DELETE, `${collectionName}/${id}`));
       }
     }
+
     prevData.current = localData;
   }, [localData, appUser, collectionName]);
 }
@@ -2413,6 +2430,45 @@ const App: React.FC = () => {
      </div>
     );
   };
+
+  if (authLoading) {
+    return <div className="h-screen w-full flex items-center justify-center font-hindi bg-gray-50 dark:bg-gray-900"><div className="text-blue-600 font-bold animate-pulse text-lg">लोड हो रहा है...</div></div>;
+  }
+
+  if (!firebaseUser) {
+    return (
+      <div className="h-screen w-full bg-cover bg-center flex flex-col items-center justify-center p-6 text-center font-hindi relative isolate overflow-hidden" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?q=80&w=2070&auto=format&fit=crop')" }}>
+         <div className="absolute inset-0 bg-black/60 dark:bg-black/80 z-[-1]" />
+         <div className="bg-white/10 backdrop-blur-md border border-white/20 p-8 rounded-3xl text-white max-w-sm w-full shadow-2xl">
+            <h1 className="text-4xl font-bold mb-2 break-keep tracking-wider">फील्ड कनेक्ट</h1>
+            <p className="text-sm text-gray-200 mb-8 max-w-xs">संगठन के कार्यों और कार्यकर्ताओं को एक सूत्र में पिरोने का डिजिटल माध्यम।</p>
+            
+            <button 
+              onClick={async () => {
+                try {
+                  await signInWithGoogle();
+                } catch (e) {
+                  console.error(e);
+                }
+              }} 
+              className="w-full bg-white text-gray-900 border border-transparent shadow-[0_0_20px_rgba(255,255,255,0.4)] hover:shadow-[0_0_25px_rgba(255,255,255,0.6)] font-bold rounded-2xl py-3.5 px-4 flex items-center justify-center gap-3 transition-all active:scale-95"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
+              गूगल से लॉगिन करें
+            </button>
+
+            <div className="mt-8 pt-6 border-t border-white/20 whitespace-normal">
+              <p className="text-[10px] text-white/60">केवल अधिकृत कार्यकर्ताओं के लिए।</p>
+            </div>
+         </div>
+      </div>
+    );
+  }
 
   return (
    <div className="min-h-[100dvh] w-full relative font-sans transition-colors duration-300 bg-transparent flex">
