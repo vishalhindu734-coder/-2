@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, setPersistence, browserLocalPersistence, browserSessionPersistence, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getAnalytics } from "firebase/analytics";
 import firebaseConfig from './firebase-applet-config.json';
@@ -55,6 +55,28 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
+
+export const signInWithUsername = async (username: string, password: string, keepSignedIn: boolean) => {
+  try {
+    await setPersistence(auth, keepSignedIn ? browserLocalPersistence : browserSessionPersistence);
+    const cleanUsername = username.trim();
+    const email = cleanUsername.includes('@') ? cleanUsername : `${cleanUsername}@pravaas.local`;
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    return result.user;
+  } catch (error: any) {
+    // If user not found, and it's admin, we could attempt to create it, but it's better to just throw 
+    // and let the UI handle it or provide a separate sign up
+    throw error;
+  }
+};
+
+export const createUsernameAccount = async (username: string, password: string) => {
+  const { createUserWithEmailAndPassword } = await import('firebase/auth');
+  const cleanUsername = username.trim();
+  const email = cleanUsername.includes('@') ? cleanUsername : `${cleanUsername}@pravaas.local`;
+  const result = await createUserWithEmailAndPassword(auth, email, password);
+  return result.user;
+};
 
 export const signInWithGoogle = async () => {
   const provider = new GoogleAuthProvider();

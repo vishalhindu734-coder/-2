@@ -121,7 +121,7 @@ import { ExportModal } from './components/ExportModal';
 import { ReportsTab } from './components/ReportsTab';
 import { AdminPanel } from './components/AdminPanel';
 import { generateVolunteerTemplate, parseVolunteerExcel } from './excelUtils';
-import { auth, db, signInWithGoogle, logout, handleFirestoreError, OperationType } from './firebase';
+import { auth, db, signInWithGoogle, signInWithUsername, createUsernameAccount, logout, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, setDoc, deleteDoc, updateDoc, collection, onSnapshot, getDocFromServer } from 'firebase/firestore';
 import { AppUser } from './types';
@@ -316,6 +316,13 @@ const App: React.FC = () => {
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
+  // Login State
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [keepSignedIn, setKeepSignedIn] = useState(true);
+  const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   // Core State
   const [ideas, setIdeas] = useState<Idea[]>(() => loadData('ideas', []));
   const [events, setEvents] = useState<EventModel[]>(() => loadData('events', []));
@@ -424,8 +431,8 @@ const App: React.FC = () => {
             const newUser: AppUser = {
               uid: user.uid,
               email: user.email || '',
-              displayName: user.displayName || '',
-              roleId: null, // by default no role
+              displayName: user.displayName || (user.email === 'admin@pravaas.local' ? 'System Admin' : ''),
+              roleId: user.email === 'admin@pravaas.local' ? 'admin' : null,
             };
             try {
               await setDoc(userRef, newUser);
@@ -2435,14 +2442,109 @@ const App: React.FC = () => {
     return <div className="h-screen w-full flex items-center justify-center font-hindi bg-gray-50 dark:bg-gray-900"><div className="text-blue-600 font-bold animate-pulse text-lg">लोड हो रहा है...</div></div>;
   }
 
+  const handleCustomLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    setIsLoggingIn(true);
+    try {
+      if (loginUsername === 'admin' && loginPassword === 'admin') {
+        try {
+          await signInWithUsername(loginUsername, loginPassword, keepSignedIn);
+        } catch (authError: any) {
+          // If the admin user doesn't exist, create it auto
+          if (authError.code === 'auth/user-not-found' || authError.code === 'auth/invalid-credential') {
+             try {
+               await createUsernameAccount(loginUsername, loginPassword);
+               const adminRoleRef = doc(db, 'roles', 'admin');
+               await setDoc(adminRoleRef, {
+                 name: 'System Admin',
+                 permissions: {
+                   users: true, roles: true, khands: true,
+                   mandals: true, villages: true, export: true
+                 }
+               }, { merge: true });
+               await signInWithUsername(loginUsername, loginPassword, keepSignedIn);
+             } catch (createErr) {
+               console.error("Failed to auto-create admin", createErr);
+               setLoginError('Invalid configuration or failed to create admin user.');
+             }
+          } else {
+             setLoginError('लॉगिन विफल: अमान्य उपयोगकर्ता नाम या पासवर्ड।');
+          }
+        }
+      } else {
+        await signInWithUsername(loginUsername, loginPassword, keepSignedIn);
+      }
+    } catch (error: any) {
+      console.error(error);
+      if (error.code === 'auth/invalid-email') {
+        setLoginError('लॉगिन विफल: अमान्य उपयोगकर्ता नाम। कृपया केवल अंग्रेजी अक्षर और अंकों का प्रयोग करें।');
+      } else {
+        setLoginError('लॉगिन विफल: अमान्य उपयोगकर्ता नाम या पासवर्ड।');
+      }
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
   if (!firebaseUser) {
     return (
       <div className="h-screen w-full bg-cover bg-center flex flex-col items-center justify-center p-6 text-center font-hindi relative isolate overflow-hidden" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?q=80&w=2070&auto=format&fit=crop')" }}>
          <div className="absolute inset-0 bg-black/60 dark:bg-black/80 z-[-1]" />
-         <div className="bg-white/10 backdrop-blur-md border border-white/20 p-8 rounded-3xl text-white max-w-sm w-full shadow-2xl">
-            <h1 className="text-4xl font-bold mb-2 break-keep tracking-wider">फील्ड कनेक्ट</h1>
-            <p className="text-sm text-gray-200 mb-8 max-w-xs">संगठन के कार्यों और कार्यकर्ताओं को एक सूत्र में पिरोने का डिजिटल माध्यम।</p>
+         <div className="bg-white/10 backdrop-blur-md border border-white/20 p-8 rounded-3xl text-white max-w-sm w-full shadow-2xl text-left">
+            <h1 className="text-4xl font-bold mb-2 break-keep tracking-wider text-center">फील्ड कनेक्ट</h1>
+            <p className="text-sm text-gray-200 mb-6 max-w-xs text-center">संगठन के कार्यों और कार्यकर्ताओं को एक सूत्र में पिरोने का डिजिटल माध्यम।</p>
             
+            <form onSubmit={handleCustomLogin} className="space-y-4 mb-6">
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase mb-1 block">उपयोगकर्ता नाम (Username)</label>
+                <input 
+                  type="text" 
+                  value={loginUsername}
+                  onChange={e => setLoginUsername(e.target.value)}
+                  className="w-full p-3 bg-white/10 border border-white/20 rounded-xl outline-none text-white placeholder-white/40 focus:border-white/50"
+                  placeholder="admin"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-300 uppercase mb-1 block">पासवर्ड (Password)</label>
+                <input 
+                  type="password" 
+                  value={loginPassword}
+                  onChange={e => setLoginPassword(e.target.value)}
+                  className="w-full p-3 bg-white/10 border border-white/20 rounded-xl outline-none text-white placeholder-white/40 focus:border-white/50"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+              <div className="flex items-center gap-2 pb-2">
+                <input 
+                  type="checkbox" 
+                  id="keepSignedIn"
+                  checked={keepSignedIn}
+                  onChange={e => setKeepSignedIn(e.target.checked)}
+                  className="w-4 h-4 rounded border-white/20 bg-white/10 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="keepSignedIn" className="text-sm text-gray-300">मुझे साइन इन रखें</label>
+              </div>
+              
+              {loginError && <p className="text-red-400 text-xs font-bold text-center">{loginError}</p>}
+
+              <button 
+                type="submit"
+                disabled={isLoggingIn}
+                className="w-full bg-blue-600 text-white shadow hover:bg-blue-700 font-bold rounded-2xl py-3.5 px-4 flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50"
+              >
+                {isLoggingIn ? 'प्रतीक्षा करें...' : 'लॉगिन करें'}
+              </button>
+            </form>
+
+            <div className="relative flex items-center justify-center mb-6">
+              <div className="border-t border-white/20 w-full absolute top-1/2 left-0"></div>
+              <span className="bg-transparent px-2 text-xs text-gray-400 relative z-10 backdrop-blur-md">या</span>
+            </div>
+
             <button 
               onClick={async () => {
                 try {
@@ -2451,6 +2553,7 @@ const App: React.FC = () => {
                   console.error(e);
                 }
               }} 
+              type="button"
               className="w-full bg-white text-gray-900 border border-transparent shadow-[0_0_20px_rgba(255,255,255,0.4)] hover:shadow-[0_0_25px_rgba(255,255,255,0.6)] font-bold rounded-2xl py-3.5 px-4 flex items-center justify-center gap-3 transition-all active:scale-95"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -2462,7 +2565,7 @@ const App: React.FC = () => {
               गूगल से लॉगिन करें
             </button>
 
-            <div className="mt-8 pt-6 border-t border-white/20 whitespace-normal">
+            <div className="mt-8 pt-6 border-t border-white/20 text-center whitespace-normal">
               <p className="text-[10px] text-white/60">केवल अधिकृत कार्यकर्ताओं के लिए।</p>
             </div>
          </div>

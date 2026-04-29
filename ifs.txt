@@ -1,0 +1,177 @@
+75:  if (!timeStr) return '';
+169:  if (!dob) return null;
+171:  if (isNaN(d.getTime())) return null;
+180:  if (age === null) return null;
+181:  if (age< 10) return 'शिशु';
+182:  if (age >= 10 && age< 15) return 'बाल';
+183:  if (age >= 15 && age<= 35) return 'तरुण';
+184:  if (age > 35) return 'प्रौढ़';
+189:  if (!Array.isArray(trainings) || trainings.length === 0) return false;
+201:  if (!Array.isArray(trainings) || trainings.length === 0) return null;
+213:    if (idx > highestIndex) {
+222:  if (data === undefined || data === null) return data;
+223:  if (Array.isArray(data)) return data.map(cleanData);
+224:  if (typeof data === 'object') {
+227:      if (data[key] !== undefined) {
+247:    if (!appUser?.uid) return;
+255:      if (isFirstLoad.current && data.length === 0 && localData && localData.length > 0) {
+258:          if (item.id) {
+284:    if (!appUser?.uid || isFirstLoad.current || isInternalUpdate.current || !prevData.current) return;
+291:      if (!id) continue;
+293:      if (!oldItem || JSON.stringify(cleanData(oldItem)) !== JSON.stringify(cleanData(item))) {
+301:      if (!id) continue;
+302:      if (!newMap.has(id)) {
+342:    if (data.length > 0 && typeof data[0] === 'string') {
+350:    if (data.length > 0 && typeof data[0] === 'string') {
+412:        if(error instanceof Error && error.message.includes('the client is offline')) {
+423:      if (user) {
+428:          if (userSnap.exists()) {
+466:      if (peopleAgeCategoryFilter !== 'all') {
+472:      if (peopleShikshitFilter !== 'all') {
+478:      if (peopleShikshitFilter === 'yes' && peopleShikshanLevelFilter.length > 0) {
+496:      if (!groups[kId]) groups[kId] = { id: kId, name: getKhandName(kId), mandals: {} };
+497:      if (!groups[kId].mandals[mId]) groups[kId].mandals[mId] = { id: mId, name: getMandalName(mId), villages: {} };
+498:      if (!groups[kId].mandals[mId].villages[vId]) groups[kId].mandals[mId].villages[vId] = { id: vId, name: getVillageName(vId), contacts: [] };
+562:    if (darkMode) html.classList.add('dark');
+566:    if (appTheme !== 'default') {
+581:    if (!lastCall) return false;
+599:          if (p.todos && Array.isArray(p.todos)) {
+606:      if (c.category) {
+609:      if (c.status) {
+613:      if (ageCat) {
+631:      if (!statsByKhand[kName]) statsByKhand[kName] = { completed: 0, planned: 0, mandals: {} };
+634:      if (t.isCompleted) {
+638:      if (statsByKhand[kName].mandals[mName] === undefined) statsByKhand[kName].mandals[mName] = { completed: 0, planned: 0 };
+641:      if (t.isCompleted) {
+666:      if (!selectedPeopleIds.includes(c.id)) return c;
+671:      if (updates.volunteerProfileUpdates) {
+702:    if (updates.isCompleted) {
+819:    if (!file) return;
+825:        if (data.khands) setKhands(data.khands);
+826:        if (data.mandals) setMandals(data.mandals);
+827:        if (data.villages) setVillages(data.villages);
+828:        if (data.contacts) setContacts(data.contacts);
+829:        if (data.trips) setTrips(data.trips);
+830:        if (data.categories) setCategories(data.categories);
+831:        if (data.eventCategories) setEventCategories(data.eventCategories);
+832:        if (data.customLists) setCustomLists(data.customLists);
+833:        if (data.meetings) setMeetings(data.meetings);
+834:        if (data.ideas) setIdeas(data.ideas);
+835:        if (data.events) setEvents(data.events);
+836:        if (data.userName) setUserName(data.userName);
+848:    if (!file) return;
+852:      if (importedContacts.length > 0) {
+853:        if (newKhands.length > 0) setKhands(prev => [...prev, ...newKhands]);
+854:        if (newMandals.length > 0) setMandals(prev => [...prev, ...newMandals]);
+855:        if (newVillages.length > 0) setVillages(prev => [...prev, ...newVillages]);
+877:      if (iconName) return<LucideIcon name={iconName} size={16} />;
+882:      if (dashKhand !== 'all') {
+884:        if (!m || m.khandId !== dashKhand) return false;
+886:      if (dashMandal !== 'all' && v.mandalId !== dashMandal) return false;
+993:                  if (dashKhand !== 'all' && getKhandName(dashKhand) !== kName) return null;
+1103:                           if (confirm(`क्या आप '${m.title}' कार्यक्रम को हटाना चाहते हैं?`)) {
+1137:      if (!grouped[mandalName]) grouped[mandalName] = {};
+1138:      if (!grouped[mandalName][villageName]) grouped[mandalName][villageName] = [];
+1305:                if (isSelectionMode) setSelectedPeopleIds([]);
+1586:    if (viewingTrip) {
+1603:      if (tripTimeFilter === 'today') return isSameDay(pDate, now);
+1604:      if (tripTimeFilter === 'yesterday') return isSameDay(pDate, subDays(now, 1));
+1605:      if (tripTimeFilter === 'week') return isSameWeek(pDate, now);
+1606:      if (tripTimeFilter === 'month') return isSameMonth(pDate, now);
+1607:      if (tripTimeFilter === 'year') return String(pDate.getFullYear()) === String(now.getFullYear());
+1623:      if (statsByKhand[kName]) {
+1625:        if (t.isCompleted) statsByKhand[kName].completed++;
+1626:        if (statsByKhand[kName].mandals[mName]) {
+1628:          if (t.isCompleted) statsByKhand[kName].mandals[mName].completed++;
+1792:    if (selectedMeetingId) {
+1794:      if (!meeting) return null;
+1798:      if (!list) {
+1828:          if (m.id !== meeting.id) return m;
+1958:    if (selectedListId) {
+1960:      if (!list) return null;
+2142:            if (listsInCat.length === 0) return null;
+2295:    if (selectedVillageId) {
+2297:      if (!village) return null;
+2313:      if (dashKhand !== 'all') {
+2315:        if (!m || m.khandId !== dashKhand) return false;
+2317:      if (dashMandal !== 'all' && v.mandalId !== dashMandal) return false;
+2441:  if (authLoading) {
+2450:      if (loginUsername === 'admin' && loginPassword === 'admin') {
+2455:          if (authError.code === 'auth/user-not-found' || authError.code === 'auth/invalid-credential') {
+2486:  if (!firebaseUser) {
+2823:                if(data.name && data.categoryId) { 
+2824:                    if (editingList) {
+2874:             if (Array.isArray(data)) {
+2896:               if (isInNewList && !hadList) return { ...c, listIds: [...c.listIds, selectedListId] };
+2897:               if (!isInNewList && hadList) return { ...c, listIds: c.listIds.filter(id => id !== selectedListId) };
+3019:    if (viewType === 'month') setCurrentDate(addMonths(currentDate, -1));
+3025:    if (viewType === 'month') setCurrentDate(addMonths(currentDate, 1));
+3263:    if (isNaN(numericValue)) return;
+3275:    if (currentDisplayValue === numericValue) return;
+3282:        if (!startTimestamp) startTimestamp = timestamp;
+3288:        if (progress < 1) {
+3298:    if (delayMs > 0) {
+3305:      if (timeoutId) clearTimeout(timeoutId);
+3306:      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+3310:  if (isNaN(numericValue)) return <span>{value}</span>;
+3382:    if (isVisible) {
+3502:                     if (isNaN(dob.getTime())) return '-';
+3636:                if (isEditingSpecialty) {
+3854:    if (current.includes(interest)) updateProfile('areasOfInterest', current.filter((i: string) => i !== interest));
+3860:    if (current.includes(day)) updateProfile('availability', current.filter((d: string) => d !== day));
+4081:    if (!mandalId) return [];
+4156:                     if (!acc[vId]) acc[vId] = [];
+4225:    if (dragState) {
+4258:      if (!scheduledIds.includes(pid)) {
+4260:        if (c) result.push({ type: 'contact', contactId: c.id, title: c.name, subtitle: getVillageName(c.villageId), villageId: c.villageId });
+4273:  if (isToday && schedule.length > 0) {
+4282:    if (item.isNow) {
+4283:      if (currentGroup) {
+4289:      if (!currentGroup) {
+4299:  if (currentGroup) {
+4316:    if (!dragState) return;
+4319:      if (!timelineRef.current) return;
+4336:      if (currentDrag.isDragging) {
+4438:                       if (group.type === 'now') {
+4475:                                 if (item.isNow) {
+4725:                  if(newCat){
+4726:                    if (editId) {
+4780:                                if(editId === c.id) {
+5171:    if (!selectedListId) return [];
+5173:    if (!list) return [];
+5232:            if (!title.trim()) {
+5236:            if (!date) {
+5408:        if (typeFilter !== 'all' && a.type !== typeFilter) return false;
+5415:    if (filter === 'day') {
+5440:    if (filter === 'day') {
+5456:    if (activity.type === 'visit') {
+5648:    if (viewType === 'month') setCurrentMonth(addMonths(currentMonth, -1));
+5654:    if (viewType === 'month') setCurrentMonth(addMonths(currentMonth, 1));
+5672:    if (iconName) return<LucideIcon name={iconName} size={10} />;
+5702:      if (dashKhand !== 'all') {
+5704:        if (!m || m.khandId !== dashKhand) return false;
+5706:      if (dashMandal !== 'all' && v.mandalId !== dashMandal) return false;
+5709:      if (v.stage === VillageStage.SHAKHA) return true; // Daily
+5710:      if (v.stage === VillageStage.MILAN) {
+5711:        if (!v.karyaDetails?.dayOfWeek) return true; // Show on all days if no day is selected so it's not hidden
+5714:      if (v.stage === VillageStage.MANDALI || v.stage === VillageStage.SAMPARK) {
+5715:         if (!v.karyaDetails?.daysOfMonth && !v.karyaDetails?.notes) return true; // Show if they haven't written anything
+5906:                                  if (confirm(`क्या आप '${k.name}' की कार्यस्थिति को हटाना चाहते हैं?`)) {
+5975:                   if (item.type === 'meeting') {
+6107:      if (filter === 'all') return true;
+6108:      if (filter === 'pending') return !i.isCompleted;
+6112:      if (existing) {
+6114:        if (idea.contactId) existing.contactIds.push(idea.contactId);
+6402:                         if (mandalId) return c.mandalId === mandalId;
+6403:                         if (khandId) return c.khandId === khandId;
+6417:                         if(linkType === 'mandal') setLinkId(e.target.value);
+6437:            if (linkType === 'customList') {
+6439:              if (list) {
+6488:    if (useStatus) updates.status = status;
+6489:    if (useCategory) updates.category = category;
+6490:    if (useResponsibility) {
+6493:    if (useLocation) {
+6494:      if (khandId) updates.khandId = khandId;
+6495:      if (mandalId) updates.mandalId = mandalId;
+6496:      if (villageId) updates.villageId = villageId;
+6499:    if (Object.keys(updates).length === 0) {

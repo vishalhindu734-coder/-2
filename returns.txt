@@ -1,0 +1,176 @@
+75:  if (!timeStr) return '';
+80:  return `${h}:${m} ${period}`;
+162:    return saved ? JSON.parse(saved) : defaultValue;
+164:    return defaultValue;
+169:  if (!dob) return null;
+171:  if (isNaN(d.getTime())) return null;
+176:  return years + (months / 12);
+180:  if (age === null) return null;
+181:  if (age< 10) return 'शिशु';
+182:  if (age >= 10 && age< 15) return 'बाल';
+183:  if (age >= 15 && age<= 35) return 'तरुण';
+184:  if (age > 35) return 'प्रौढ़';
+185:  return null;
+189:  if (!Array.isArray(trainings) || trainings.length === 0) return false;
+197:  return trainings.some(t => levels.includes(t.class));
+201:  if (!Array.isArray(trainings) || trainings.length === 0) return null;
+218:  return highestName;
+222:  if (data === undefined || data === null) return data;
+223:  if (Array.isArray(data)) return data.map(cleanData);
+231:    return cleaned;
+233:  return data;
+280:    return () => unsub();
+343:      return data.map((name: string, i: number) => ({ id: `c${i}`, name, icon: 'User' }));
+345:    return data;
+351:      return data.map((name: string, i: number) => ({ id: `ec${i}`, name, icon: 'Calendar' }));
+353:    return data;
+452:    return () => unsub();
+460:    return contacts.filter(c => {
+485:      return matchSearch && matchStatus && matchCategory && matchAgeCat && matchShikshit && matchShikshanLevel && matchArea;
+502:    return groups;
+581:    if (!lastCall) return false;
+583:    return diff < 48 * 60 * 60 * 1000;
+646:    return {
+666:      if (!selectedPeopleIds.includes(c.id)) return c;
+687:      return updatedContact;
+884:        if (!m || m.khandId !== dashKhand) return false;
+886:      if (dashMandal !== 'all' && v.mandalId !== dashMandal) return false;
+887:      return true;
+897:    return (
+993:                  if (dashKhand !== 'all' && getKhandName(dashKhand) !== kName) return null;
+995:                  return (
+1129:      return matchSearch && matchArea;
+1142:    return (
+1227:                          return (
+1289:    return (
+1368:                 return (
+1519:                                return (
+1587:      return (
+1603:      if (tripTimeFilter === 'today') return isSameDay(pDate, now);
+1604:      if (tripTimeFilter === 'yesterday') return isSameDay(pDate, subDays(now, 1));
+1605:      if (tripTimeFilter === 'week') return isSameWeek(pDate, now);
+1606:      if (tripTimeFilter === 'month') return isSameMonth(pDate, now);
+1607:      if (tripTimeFilter === 'year') return String(pDate.getFullYear()) === String(now.getFullYear());
+1608:      return true;
+1633:    return (
+1719:                  return (
+1794:      if (!meeting) return null;
+1799:         return (
+1828:          if (m.id !== meeting.id) return m;
+1830:          return {
+1839:      return (
+1908:                return (
+1960:      if (!list) return null;
+1963:      return (
+2042:                    return (
+2092:    return (
+2120:             return (
+2142:            if (listsInCat.length === 0) return null;
+2144:            return (
+2297:      if (!village) return null;
+2298:      return (
+2315:        if (!m || m.khandId !== dashKhand) return false;
+2317:      if (dashMandal !== 'all' && v.mandalId !== dashMandal) return false;
+2318:      return true;
+2342:        return {
+2349:    return (
+2442:    return <div className="h-screen w-full flex items-center justify-center font-hindi bg-gray-50 dark:bg-gray-900"><div className="text-blue-600 font-bold animate-pulse text-lg">लोड हो रहा है...</div></div>;
+2487:    return (
+2572:  return (
+2896:               if (isInNewList && !hadList) return { ...c, listIds: [...c.listIds, selectedListId] };
+2897:               if (!isInNewList && hadList) return { ...c, listIds: c.listIds.filter(id => id !== selectedListId) };
+2898:               return c;
+3033:    return trips.filter((t: any) => isSameDay(parseISO(t.date), date));
+3062:    return (
+3073:            return (
+3100:    return (
+3104:          return (
+3143:    return (
+3174:  return (
+3272:        return prev;
+3304:    return () => {
+3310:  if (isNaN(numericValue)) return <span>{value}</span>;
+3312:  return <span>{displayValue}</span>;
+3334:      case 'orange': return "from-orange-500 via-red-500 to-rose-600 shadow-orange-500/20";
+3335:      case 'blue': return "from-blue-500 via-indigo-500 to-purple-600 shadow-blue-500/20";
+3336:      case 'green': return "from-emerald-500 via-teal-500 to-cyan-600 shadow-emerald-500/20";
+3337:      case 'purple': return "from-purple-500 via-fuchsia-100 to-pink-600 shadow-purple-500/20";
+3338:      default: return "from-indigo-500 via-purple-500 to-pink-500 shadow-indigo-500/20";
+3344:      case 'orange': return "text-orange-500";
+3345:      case 'blue': return "text-blue-500";
+3346:      case 'green': return "text-emerald-500";
+3347:      case 'purple': return "text-purple-500";
+3348:      default: return "text-indigo-500";
+3352:  return (
+3384:      return () => clearTimeout(timer);
+3388:  return (
+3445:  return (
+3502:                     if (isNaN(dob.getTime())) return '-';
+3503:                     return `${Math.abs(new Date(Date.now() - dob.getTime()).getUTCFullYear() - 1970)} वर्ष`;
+3602:  return (
+3742:                      return (
+3881:  return (
+4081:    if (!mandalId) return [];
+4082:    return ideas.filter((idea: Idea) => 
+4088:  return (
+4158:                     return acc;
+4161:                   return Object.entries(groupedContacts).map(([vId, vContacts]: [string, any]) => {
+4163:                     return (
+4233:    return ideas.filter((idea: Idea) => 
+4264:    return result;
+4356:    return () => {
+4363:  return (
+4440:                          return (
+4459:                       return (
+4476:                                   return (
+4496:                                 return (
+4646:                  return (
+4695:   return (
+4979:      case 'wide': return "col-span-2 aspect-[2.5/1]";
+4980:      default: return "col-span-1 aspect-square";
+4984:  return (
+5021:  return (
+5144:   return (
+5171:    if (!selectedListId) return [];
+5173:    if (!list) return [];
+5174:    return ideas.filter((idea: Idea) => !idea.isCompleted && idea.contactId && list.peopleIds.includes(idea.contactId));
+5177:  return (
+5255:  return (
+5290:    return matchSearch && matchKhand && matchMandal && matchVillage;
+5297:  return (
+5333:              return (
+5384:      return c.history.map((h: any) => ({ 
+5408:        if (typeFilter !== 'all' && a.type !== typeFilter) return false;
+5409:        return true;
+5412:      return d<= today || isSameDay(d, today);
+5423:    return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+5437:      return d<= today || isSameDay(d, today);
+5448:    return {
+5475:  return (
+5685:    return true; 
+5704:        if (!m || m.khandId !== dashKhand) return false;
+5706:      if (dashMandal !== 'all' && v.mandalId !== dashMandal) return false;
+5709:      if (v.stage === VillageStage.SHAKHA) return true; // Daily
+5711:        if (!v.karyaDetails?.dayOfWeek) return true; // Show on all days if no day is selected so it's not hidden
+5712:        return v.karyaDetails?.dayOfWeek === currentDayStr;
+5715:         if (!v.karyaDetails?.daysOfMonth && !v.karyaDetails?.notes) return true; // Show if they haven't written anything
+5723:         return matchDayStr || matchDateStr;
+5725:      return false;
+5728:    return {
+5740:  return (
+5831:                return (
+6015:             return (
+6040:                      return (
+6107:      if (filter === 'all') return true;
+6108:      if (filter === 'pending') return !i.isCompleted;
+6109:      return i.isCompleted;
+6119:    return groups;
+6122:  return (
+6164:            return (
+6209:  return (
+6285:                 return (
+6322:  return (
+6402:                         if (mandalId) return c.mandalId === mandalId;
+6403:                         if (khandId) return c.khandId === khandId;
+6404:                         return true;
+6507:  return (

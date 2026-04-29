@@ -1,0 +1,220 @@
+1:import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+236:function useDataSync<T extends {id: string}>(
+242:  const isInternalUpdate = useRef(false);
+243:  const prevData = useRef<T[] | null>(null);
+244:  const isFirstLoad = useRef(true);
+246:  useEffect(() => {
+249:    console.log(`[useDataSync] Subscribing to ${collectionName}...`);
+252:      console.log(`[useDataSync] ${collectionName} received snapshot with ${data.length} items`);
+256:        console.log(`[useDataSync] ${collectionName} is empty in Firebase. Populating with ${localData.length} initial items...`);
+276:      console.error(`[useDataSync] Error in ${collectionName}:`, error);
+283:  useEffect(() => {
+286:    console.log(`[useDataSync] Local changes detected in ${collectionName}, computing diff...`);
+294:        console.log(`[useDataSync] Writing updated/new item to ${collectionName}/${id}`);
+303:        console.log(`[useDataSync] Deleting item ${collectionName}/${id}`);
+315:  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+316:  const [appUser, setAppUser] = useState<AppUser | null>(null);
+317:  const [authLoading, setAuthLoading] = useState(true);
+320:  const [loginUsername, setLoginUsername] = useState('');
+321:  const [loginPassword, setLoginPassword] = useState('');
+322:  const [keepSignedIn, setKeepSignedIn] = useState(true);
+323:  const [loginError, setLoginError] = useState('');
+324:  const [isLoggingIn, setIsLoggingIn] = useState(false);
+327:  const [ideas, setIdeas] = useState<Idea[]>(() => loadData('ideas', []));
+328:  const [events, setEvents] = useState<EventModel[]>(() => loadData('events', []));
+329:  const [activeTab, setActiveTab] = useState<Tab>('home');
+330:  const [khands, setKhands] = useState<Khand[]>(() => loadData('khands', INITIAL_KHANDS));
+331:  const [mandals, setMandals] = useState<Mandal[]>(() => loadData('mandals', INITIAL_MANDALS));
+332:  const [villages, setVillages] = useState<Village[]>(() => loadData('villages', INITIAL_VILLAGES));
+333:  const [contacts, setContacts] = useState<Contact[]>(() => loadData('contacts', INITIAL_CONTACTS));
+334:  const [trips, setTrips] = useState<TripPlan[]>(() => loadData('trips', INITIAL_TRIPS));
+335:  const [tripTimeFilter, setTripTimeFilter] = useState<'all' | 'today' | 'yesterday' | 'week' | 'month' | 'year'>('all');
+336:  const [tripViewMode, setTripViewMode] = useState<'list' | 'calendar'>(() => loadData('tripViewMode', 'list'));
+337:  const [calendarViewType, setCalendarViewType] = useState<'1day' | '3day' | 'week' | 'month' | 'schedule'>('month');
+338:  const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
+340:  const [categories, setCategories] = useState<Category[]>(() => {
+348:  const [eventCategories, setEventCategories] = useState<Category[]>(() => {
+356:  const [customLists, setCustomLists] = useState<CustomList[]>(() => loadData('customLists', INITIAL_LISTS));
+357:  const [listCategories, setListCategories] = useState<Category[]>(() => loadData('listCategories', INITIAL_LIST_CATEGORIES));
+358:  const [meetings, setMeetings] = useState<Meeting[]>(() => loadData('meetings', []));
+359:  const [darkMode, setDarkMode] = useState(() => loadData('darkMode', false));
+360:  const [appTheme, setAppTheme] = useState(() => loadData('appTheme', 'default'));
+361:  const [appFont, setAppFont] = useState(() => loadData('appFont', 'baloo'));
+362:  const [appFontSize, setAppFontSize] = useState(() => loadData('appFontSize', 16));
+363:  const [userName, setUserName] = useState(() => loadData('userName', 'क्षेत्र स्वयंसेवक'));
+364:  const [callRecords, setCallRecords] = useState<Record<string, string>>(() => loadData('callRecords', {}));
+365:  const [whatsappMessage, setWhatsappMessage] = useState(() => loadData('whatsappMessage', 'नमस्ते'));
+368:  const [dashKhand, setDashKhand] = useState<string>('all');
+369:  const [dashMandal, setDashMandal] = useState<string>('all');
+375:  const [dashStage, setDashStage] = useState<string>('all');
+376:  const [peopleSearch, setPeopleSearch] = useState('');
+377:  const [listCategoryFilter, setListCategoryFilter] = useState<string | 'all'>('all');
+378:  const [peopleStatusFilter, setPeopleStatusFilter] = useState<string | 'all'>('all');
+379:  const [peopleCategoryFilter, setPeopleCategoryFilter] = useState<string | 'all'>('all');
+380:  const [peopleAgeCategoryFilter, setPeopleAgeCategoryFilter] = useState<string | 'all'>('all');
+381:  const [peopleShikshitFilter, setPeopleShikshitFilter] = useState<'all' | 'yes' | 'no'>('all');
+382:  const [peopleShikshanLevelFilter, setPeopleShikshanLevelFilter] = useState<string[]>([]);
+383:  const [peopleKhandFilter, setPeopleKhandFilter] = useState<string>('all');
+384:  const [peopleMandalFilter, setPeopleMandalFilter] = useState<string>('all');
+385:  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+386:  const [selectedVillageId, setSelectedVillageId] = useState<string | null>(null);
+387:  const [selectedListId, setSelectedListId] = useState<string | null>(null);
+388:  const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
+389:  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+390:  const [selectedPeopleIds, setSelectedPeopleIds] = useState<string[]>([]);
+391:    const [isBulkUpdateModalOpen, setIsBulkUpdateModalOpen] = useState(false);
+392:  const [isSelectionMode, setIsSelectionMode] = useState(false);
+394:  useDataSync('contacts', contacts as any[], setContacts as any, appUser);
+395:  useDataSync('khands', khands as any[], setKhands as any, appUser);
+396:  useDataSync('mandals', mandals as any[], setMandals as any, appUser);
+397:  useDataSync('villages', villages as any[], setVillages as any, appUser);
+398:  useDataSync('trips', trips as any[], setTrips as any, appUser);
+399:  useDataSync('lists', customLists as any[], setCustomLists as any, appUser);
+400:  useDataSync('categories', categories as any[], setCategories as any, appUser);
+401:  useDataSync('eventCategories', eventCategories as any[], setEventCategories as any, appUser);
+402:  useDataSync('listCategories', listCategories as any[], setListCategories as any, appUser);
+403:  useDataSync('meetings', meetings as any[], setMeetings as any, appUser);
+404:  useDataSync('ideas', ideas as any[], setIdeas as any, appUser);
+405:  useDataSync('events', events as any[], setEvents as any, appUser);
+407:  useEffect(() => {
+420:  useEffect(() => {
+459:  const filteredPeople = useMemo(() => {
+489:  const groupedPeopleData = useMemo(() => {
+505:  const [exportTarget, setExportTarget] = useState<{data: any[], title: string, isGeneric?: boolean} | null>(null);
+518:  const [isManagingMembers, setIsManagingMembers] = useState(false);
+521:  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+522:  const [editingTrip, setEditingTrip] = useState<TripPlan | null>(null);
+523:  const [viewingTrip, setViewingTrip] = useState<TripPlan | null>(null);
+524:  const [isAddingContact, setIsAddingContact] = useState(false);
+525:  const [isAddingTrip, setIsAddingTrip] = useState(false);
+526:  const [isAddingList, setIsAddingList] = useState(false);
+527:  const [editingList, setEditingList] = useState<CustomList | null>(null);
+528:  const [isAddingMeeting, setIsAddingMeeting] = useState(false);
+529:  const [isAddingIdea, setIsAddingIdea] = useState(false);
+530:  const [isLoggingVisit, setIsLoggingVisit] = useState<string | null>(null);
+531:  const [isEditingVisit, setIsEditingVisit] = useState<{contactId: string, history: VisitHistory} | null>(null);
+532:  const [confirmation, setConfirmation] = useState<{ title: string; message: string; onConfirm: () => void; titleFont?: string; messageFont?: string } | null>(null);
+534:  const fileInputRef = useRef<HTMLInputElement>(null);
+535:  const volunteerExcelInputRef = useRef<HTMLInputElement>(null);
+538:  useEffect(() => {
+590:  const stats = useMemo(() => {
+699:  const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
+3260:  const [displayValue, setDisplayValue] = React.useState(0);
+3262:  React.useEffect(() => {
+3381:  useEffect(() => {
+3597:  const [isEditingSpecialty, setIsEditingSpecialty] = useState(false);
+3598:  const [isEditingName, setIsEditingName] = useState(false);
+3599:  const [specialty, setSpecialty] = useState(village.specialty || '');
+3600:  const [newName, setNewName] = useState(village.name);
+3836:  const [isSubmitting, setIsSubmitting] = useState(false);
+3837:  const [name, setName] = useState(initialData?.name || '');
+3838:  const [phone, setPhone] = useState(initialData?.phone || '');
+3839:  const [khandId, setKhandId] = useState(initialData?.khandId || '');
+3840:  const [mandalId, setMandalId] = useState(initialData?.mandalId || '');
+3841:  const [villageId, setVillageId] = useState(initialData?.villageId || '');
+3842:  const [cat, setCat] = useState(initialData?.category || categories[0]?.name || '');
+3843:  const [status, setStatus] = useState(initialData?.status || Status.SAKRIYA);
+3845:  const [showMore, setShowMore] = useState(false);
+3846:  const [profile, setProfile] = useState<any>(initialData?.volunteerProfile || {});
+4072:  const [isSubmitting, setIsSubmitting] = useState(false);
+4073:  const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
+4074:  const [khandId, setKhandId] = useState(initialData?.khandId || '');
+4075:  const [mandalId, setMandalId] = useState(initialData?.mandalId || '');
+4076:  const [selVillages, setSelVillages] = useState<string[]>(initialData?.villageIds || []);
+4077:  const [selPeople, setSelPeople] = useState<string[]>(initialData?.peopleIds || []);
+4078:  const [notes, setNotes] = useState(initialData?.notes || '');
+4080:  const relevantIdeas = useMemo(() => {
+4197:  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'ideas' | 'notes'>('schedule');
+4198:  const timelineRef = useRef<HTMLDivElement>(null);
+4199:  const [dragState, setDragState] = useState<{
+4207:  const dragValuesRef = useRef({
+4215:  const scheduleRef = useRef(schedule);
+4216:  const onUpdateRef = useRef(onUpdate);
+4218:  useEffect(() => {
+4223:  useEffect(() => {
+4232:  const relevantIdeas = useMemo(() => {
+4251:  const unscheduledContacts = useMemo(() => {
+4315:  useEffect(() => {
+4690:   const [newCat, setNewCat] = useState('');
+4691:   const [newIcon, setNewIcon] = useState('User');
+4692:   const [isPickingIcon, setIsPickingIcon] = useState(false);
+4693:   const [editId, setEditId] = useState<string | null>(null);
+4967:  const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([]);
+4969:  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+5143:   const [val, setVal] = useState('');
+5164:  const [title, setTitle] = useState('');
+5165:  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+5166:  const [location, setLocation] = useState('');
+5167:  const [notes, setNotes] = useState('');
+5168:  const [category, setCategory] = useState(eventCategories[0]?.name || '');
+5170:  const relevantIdeas = useMemo(() => {
+5253:  const [notes, setNotes] = useState(initialNotes || '');
+5254:  const [date, setDate] = useState(initialDate ? initialDate.split('T')[0] : new Date().toISOString().split('T')[0]);
+5279:  const [selectedIds, setSelectedIds] = useState<string[]>(list.peopleIds);
+5280:  const [search, setSearch] = useState('');
+5281:  const [khandFilter, setKhandFilter] = useState('all');
+5282:  const [mandalFilter, setMandalFilter] = useState('all');
+5283:  const [villageFilter, setVillageFilter] = useState('all');
+5376:  const [filter, setFilter] = useState<'day' | 'week' | 'month' | 'all'>('all');
+5377:  const [typeFilter, setTypeFilter] = useState<'all' | 'visit' | 'meeting' | 'trip'>('all');
+5378:  const [editingId, setEditingId] = useState<string | null>(null);
+5379:  const [editVal, setEditVal] = useState('');
+5381:  const allActivities = useMemo(() => {
+5427:  const summary = useMemo(() => {
+5639:  const [currentMonth, setCurrentMonth] = useState(new Date());
+5640:  const [selectedDate, setSelectedDate] = useState(new Date());
+5641:  const [karyasExpanded, setKaryasExpanded] = useState(false);
+5642:  const [viewType, setViewType] = useState<'month' | '1day' | '3day' | 'week' | 'schedule'>('month');
+6102:  const [filter, setFilter] = useState<'pending' | 'completed' | 'all'>('pending');
+6104:  const groupedIdeas = useMemo(() => {
+6204:  const [name, setName] = useState(initialData?.name || '');
+6205:  const [categoryId, setCategoryId] = useState(initialData?.categoryId || '');
+6206:  const [icon, setIcon] = useState(initialData?.icon || '');
+6207:  const [showIconPicker, setShowIconPicker] = useState(false);
+6316:  const [content, setContent] = useState('');
+6317:  const [linkType, setLinkType] = useState<'none' | 'contact' | 'village' | 'mandal' | 'customList'>('none');
+6318:  const [linkId, setLinkId] = useState('');
+6319:  const [khandId, setKhandId] = useState('');
+6320:  const [mandalId, setMandalId] = useState('');
+6472:  const [useStatus, setUseStatus] = useState(false);
+6473:  const [status, setStatus] = useState(Status.SAKRIYA);
+6475:  const [useCategory, setUseCategory] = useState(false);
+6476:  const [category, setCategory] = useState(categories[0]?.name || '');
+6478:  const [useResponsibility, setUseResponsibility] = useState(false);
+6479:  const [responsibility, setResponsibility] = useState('');
+6481:  const [useLocation, setUseLocation] = useState(false);
+6482:  const [khandId, setKhandId] = useState('');
+6483:  const [mandalId, setMandalId] = useState('');
+6484:  const [villageId, setVillageId] = useState('');
+6488:    if (useStatus) updates.status = status;
+6489:    if (useCategory) updates.category = category;
+6490:    if (useResponsibility) {
+6493:    if (useLocation) {
+6526:          <div className={`p-4 rounded-2xl border transition-all ${useStatus ? 'bg-white dark:bg-gray-800 border-indigo-500 shadow-lg ring-1 ring-indigo-500/20' : 'bg-gray-50/50 dark:bg-gray-900/20 border-transparent dark:border-gray-800 opacity-70'}`}>
+6529:                <div className={`p-2 rounded-lg ${useStatus ? 'bg-indigo-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500'}`}>
+6532:                <span className={`font-bold text-sm ${useStatus ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500'}`}>शक्ति (Status)</span>
+6535:                onClick={() => setUseStatus(!useStatus)} 
+6536:                className={`text-[10px] font-bold px-2 py-1 rounded-full transition-all uppercase tracking-widest ${useStatus ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-200 dark:bg-gray-800 text-gray-500'}`}
+6538:                {useStatus ? 'हटाएं' : 'चुनें'}
+6541:            {useStatus && (
+6557:          <div className={`p-4 rounded-2xl border transition-all ${useCategory ? 'bg-white dark:bg-gray-800 border-purple-500 shadow-lg ring-1 ring-purple-500/20' : 'bg-gray-50/50 dark:bg-gray-900/20 border-transparent dark:border-gray-800 opacity-70'}`}>
+6560:                <div className={`p-2 rounded-lg ${useCategory ? 'bg-purple-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500'}`}>
+6563:                <span className={`font-bold text-sm ${useCategory ? 'text-purple-600 dark:text-purple-400' : 'text-gray-500'}`}>संपर्क श्रेणी</span>
+6566:                onClick={() => setUseCategory(!useCategory)} 
+6567:                className={`text-[10px] font-bold px-2 py-1 rounded-full transition-all uppercase tracking-widest ${useCategory ? 'bg-purple-600 text-white shadow-md' : 'bg-gray-200 dark:bg-gray-800 text-gray-500'}`}
+6569:                {useCategory ? 'हटाएं' : 'चुनें'}
+6572:            {useCategory && (
+6589:          <div className={`p-4 rounded-2xl border transition-all ${useResponsibility ? 'bg-white dark:bg-gray-800 border-orange-500 shadow-lg ring-1 ring-orange-500/20' : 'bg-gray-50/50 dark:bg-gray-900/20 border-transparent dark:border-gray-800 opacity-70'}`}>
+6592:                <div className={`p-2 rounded-lg ${useResponsibility ? 'bg-orange-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500'}`}>
+6595:                <span className={`font-bold text-sm ${useResponsibility ? 'text-orange-600 dark:text-orange-400' : 'text-gray-500'}`}>वर्तमान दायित्व</span>
+6598:                onClick={() => setUseResponsibility(!useResponsibility)} 
+6599:                className={`text-[10px] font-bold px-2 py-1 rounded-full transition-all uppercase tracking-widest ${useResponsibility ? 'bg-orange-600 text-white shadow-md' : 'bg-gray-200 dark:bg-gray-800 text-gray-500'}`}
+6601:                {useResponsibility ? 'हटाएं' : 'चुनें'}
+6604:            {useResponsibility && (
+6618:          <div className={`p-4 rounded-2xl border transition-all ${useLocation ? 'bg-white dark:bg-gray-800 border-emerald-500 shadow-lg ring-1 ring-emerald-500/20' : 'bg-gray-50/50 dark:bg-gray-900/20 border-transparent dark:border-gray-800 opacity-70'}`}>
+6621:                <div className={`p-2 rounded-lg ${useLocation ? 'bg-emerald-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500'}`}>
+6624:                <span className={`font-bold text-sm ${useLocation ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500'}`}>क्षेत्र (Location)</span>
+6627:                onClick={() => setUseLocation(!useLocation)} 
+6628:                className={`text-[10px] font-bold px-2 py-1 rounded-full transition-all uppercase tracking-widest ${useLocation ? 'bg-emerald-600 text-white shadow-md' : 'bg-gray-200 dark:bg-gray-800 text-gray-500'}`}
+6630:                {useLocation ? 'हटाएं' : 'चुनें'}
+6633:            {useLocation && (
