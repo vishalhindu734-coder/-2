@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AppUser, Contact, ChatRoom, ChatMessage, Attachment, MessageReference, CustomList } from '../types';
 import { EventModel } from '../App';
-import { ArrowLeft, Send, Users, User, Plus, MessageSquare, Paperclip, Link, X, FileText, CalendarDays, LayoutList } from 'lucide-react';
-import { collection, addDoc, doc, setDoc, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { ArrowLeft, Send, Users, User, Plus, MessageSquare, Paperclip, Link, X, FileText, CalendarDays, LayoutList, Check, CheckCheck } from 'lucide-react';
+import { collection, addDoc, doc, setDoc, updateDoc, arrayUnion, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 
 interface ChatViewProps {
@@ -52,6 +52,37 @@ export const ChatView: React.FC<ChatViewProps> = ({ appUser, contacts, events = 
   const [reference, setReference] = useState<MessageReference | null>(null);
   const [showRefMenu, setShowRefMenu] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    chatMessages.forEach(msg => {
+      if (msg.senderId === myUserId) return;
+      
+      const isDelivered = (msg.deliveredTo || []).includes(myUserId);
+      const isRead = (msg.readBy || []).includes(myUserId);
+      const shouldMarkRead = activeRoomId === msg.roomId;
+      
+      if (!isDelivered || (shouldMarkRead && !isRead)) {
+        const room = chatRooms.find(r => r.id === msg.roomId);
+        if (!room) return;
+
+        const updates: any = {};
+        if (!isDelivered) updates.deliveredTo = arrayUnion(myUserId);
+        if (shouldMarkRead && !isRead) updates.readBy = arrayUnion(myUserId);
+
+        updateDoc(doc(db, 'chatMessages', msg.id), updates).catch(() => {});
+      }
+    });
+  }, [chatMessages, activeRoomId, myUserId, chatRooms]);
+
+  const getMessageStatus = (msg: ChatMessage, room: ChatRoom) => {
+    const others = room.participantIds.filter(id => id !== myUserId);
+    if (others.length === 0) return 'read';
+    const readByAll = others.every(id => (msg.readBy || []).includes(id));
+    if (readByAll) return 'read';
+    const deliveredToAll = others.every(id => (msg.deliveredTo || []).includes(id) || (msg.readBy || []).includes(id));
+    if (deliveredToAll) return 'delivered';
+    return 'sent';
+  };
 
   // Fetch Messages for active room
   useEffect(() => {
@@ -183,23 +214,37 @@ export const ChatView: React.FC<ChatViewProps> = ({ appUser, contacts, events = 
     const room = chatRooms.find(r => r.id === activeRoomId);
 
     let roomName = room?.name || 'Chat';
+    let otherUser: AppUser | undefined = undefined;
     if (room?.type === 'direct') {
       const otherId = room.participantIds.find(id => id !== myUserId);
-      const otherUser = appUsers.find(u => u.uid === otherId);
+      otherUser = appUsers.find(u => u.uid === otherId);
       const linkedContact = otherUser?.linkedContactId ? contacts.find(c => c.id === otherUser.linkedContactId) : null;
       roomName = linkedContact?.name || otherUser?.displayName || otherUser?.email || otherId || 'Chat';
     }
 
+    const formatLastSeen = (isoString?: string) => {
+      if (!isoString) return '';
+      const d = new Date(isoString);
+      return d.toLocaleDateString() === new Date().toLocaleDateString() ? `today at ${d.toLocaleTimeString([], {timeStyle: 'short'})}` : `on ${d.toLocaleDateString()}`;
+    };
+
     return (
       <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="flex flex-col h-full bg-white dark:bg-gray-900 absolute inset-0 z-50">
-        <header className="bg-[#FF9933] text-white p-4 shadow-md flex items-center gap-3">
-          <button onClick={() => setActiveRoomId(null)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
+        <header className="bg-[#FF9933] text-white p-3 shadow-md flex items-center gap-2">
+          <button onClick={() => setActiveRoomId(null)} className="p-2 hover:bg-white/20 rounded-full transition-colors -ml-2">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
              {room?.type === 'group' ? <Users className="w-5 h-5" /> : <User className="w-5 h-5" />}
           </div>
-          <h2 className="font-bold text-lg">{roomName}</h2>
+          <div className="min-w-0 flex-1 ml-1 text-left">
+            <h2 className="font-bold text-[16px] leading-tight truncate">{roomName}</h2>
+            {room?.type === 'direct' && otherUser && (
+              <div className="text-[11px] text-white/80 shrink-0 truncate">
+                {otherUser.isOnline ? 'Online' : otherUser.lastSeen ? `Last seen ${formatLastSeen(otherUser.lastSeen)}` : 'Offline'}
+              </div>
+            )}
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 dark:bg-gray-800 relative">
@@ -228,8 +273,19 @@ export const ChatView: React.FC<ChatViewProps> = ({ appUser, contacts, events = 
                   )}
 
                   {m.text && <div>{m.text}</div>}
-                  <div className={`text-[10px] text-right mt-1 ${isMe ? 'text-white/70' : 'text-gray-400'}`}>
-                    {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  <div className={`text-[10px] text-right mt-1 flex items-center justify-end gap-1 ${isMe ? 'text-white/80' : 'text-gray-400'}`}>
+                    <span>{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    {isMe && room && (
+                      <span className="inline-block mt-[1px]">
+                        {getMessageStatus(m, room) === 'read' ? (
+                          <CheckCheck size={14} className="text-blue-300" />
+                        ) : getMessageStatus(m, room) === 'delivered' ? (
+                          <CheckCheck size={14} />
+                        ) : (
+                          <Check size={14} />
+                        )}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

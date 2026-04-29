@@ -445,6 +445,42 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!appUser?.uid || appUser.uid === 'anonymous') return;
     
+    const userRef = doc(db, 'users', appUser.uid);
+    
+    const setOnline = async () => {
+      try {
+        await updateDoc(userRef, { isOnline: true, lastSeen: new Date().toISOString() });
+      } catch(e) {}
+    };
+    const setOffline = async () => {
+      try {
+        await updateDoc(userRef, { isOnline: false, lastSeen: new Date().toISOString() });
+      } catch(e) {}
+    };
+
+    setOnline();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setOnline();
+      } else {
+        setOffline();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', setOffline);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', setOffline);
+      setOffline();
+    };
+  }, [appUser?.uid]);
+
+  useEffect(() => {
+    if (!appUser?.uid || appUser.uid === 'anonymous') return;
+    
     // Request permission for Out-of-app Push Notifications
     if ('Notification' in window) {
       Notification.requestPermission();

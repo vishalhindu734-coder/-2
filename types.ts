@@ -218,6 +218,9 @@ export interface ChatMessage {
   participantIds?: string[];
   attachment?: Attachment;
   reference?: MessageReference;
+  status?: 'sent' | 'delivered' | 'read';
+  deliveredTo?: string[];
+  readBy?: string[];
 }
 
 // ---- Role Based Access Control Models ---- //
@@ -248,4 +251,6 @@ export interface AppUser {
     villageIds: string[];
   };
   linkedContactId?: string;
+  isOnline?: boolean;
+  lastSeen?: string;
 }
