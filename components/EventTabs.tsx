@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { EventModel } from '../App';
+import { EventModel } from '../types';
 import { Plus, ArrowLeft, Calendar as CalendarIcon, MapPin, Clock, Users, List as ListIcon, DollarSign, CheckCircle, AlertTriangle, AlertCircle, Trash2, PieChart, Phone, Edit3, Save, ChevronRight } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 

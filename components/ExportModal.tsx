@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, Download, FileJson, FileText, TableProperties, FileDown, CheckCircle2, Circle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { getAgeCategory, calculateAge, getHighestShikshan } from '../App';
+import { getAgeCategory, calculateAge, getHighestShikshan } from '../dataUtils';
 
 export const ExportModal = ({ isOpen, onClose, data, villages, mandals, title = 'export', isGeneric = false }: any) => {
   const [selectedFormat, setSelectedFormat] = useState<'csv' | 'pdf' | 'json' | 'txt'>('csv');

@@ -185,44 +185,6 @@ export interface Meeting {
   presentPeopleIds: string[]; // Actual attendance
 }
 
-export interface ChatRoom {
-  id: string;
-  type: 'direct' | 'group';
-  name?: string;
-  participantIds: string[];
-  lastMessage?: string;
-  lastMessageTime?: string;
-  lastSenderId?: string;
-}
-
-export interface Attachment {
-  type: 'image' | 'file';
-  url: string;
-  name?: string;
-  size?: number;
-}
-
-export interface MessageReference {
-  type: 'contact' | 'event' | 'feedback' | 'list';
-  id: string;
-  name: string;
-}
-
-export interface ChatMessage {
-  id: string;
-  roomId: string;
-  senderId: string;
-  senderName: string;
-  text: string;
-  timestamp: string;
-  participantIds?: string[];
-  attachment?: Attachment;
-  reference?: MessageReference;
-  status?: 'sent' | 'delivered' | 'read';
-  deliveredTo?: string[];
-  readBy?: string[];
-}
-
 // ---- Role Based Access Control Models ---- //
 
 export type Permission = 
@@ -238,6 +200,23 @@ export interface AppRole {
   id: string;
   name: string;
   permissions: Permission[];
+}
+
+export interface EventModel {
+  id: string;
+  name: string;
+  date: string;
+  time: string;
+  location: string;
+  team: { id: string, name: string, contact: string, role: string, teamRole: string, task: string }[];
+  phases: { id: string, phase: string, startDate: string, endDate: string, task: string, workerName: string, followUp: string, todos?: { id: string, text: string, isCompleted: boolean }[] }[];
+  departments: { id: string, deptName: string, headName: string, prep: string, meetings: string, followUp: string }[];
+  resources: { id: string, itemName: string, type: string, source: string, estCost: number, workerName: string }[];
+  expenses: { id: string, date: string, desc: string, type: string, workerName: string, amount: number, notes: string }[];
+  incomes: { id: string, date: string, desc: string, type: string, workerName: string, amount: number, notes: string }[];
+  executions: { id: string, deptName: string, task: string, workerName: string, followUp: string }[];
+  reviews: { id: string, deptName: string, attendance: string, positive: string, improvement: string, followUp: string }[];
+  contingencies: { id: string, challenge: string, solution: string, workerName: string, contact: string }[];
 }
 
 export interface AppUser {

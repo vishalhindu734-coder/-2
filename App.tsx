@@ -30,7 +30,6 @@ import {
   Tag,
   UserPlus,
   UsersRound,
-  MessageSquare,
   CalendarCheck,
   UserCheck,
   Award,
@@ -44,6 +43,7 @@ import {
   X,
   FileText,
   Clock,
+  ClipboardList,
   GripVertical,
   LayoutList,
   CalendarDays,
@@ -120,31 +120,15 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, L
 import { ExportModal } from './components/ExportModal';
 import { ReportsTab } from './components/ReportsTab';
 import { AdminPanel } from './components/AdminPanel';
-import { ChatView } from './components/ChatView';
 import { generateVolunteerTemplate, parseVolunteerExcel } from './excelUtils';
 import { auth, db, signInWithGoogle, signInWithUsername, createUsernameAccount, logout, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, setDoc, deleteDoc, updateDoc, collection, onSnapshot, getDocFromServer, query, where } from 'firebase/firestore';
-import { AppUser, ChatRoom, ChatMessage, AppRole, Permission } from './types';
+import { AppUser, AppRole, Permission, EventModel } from './types';
+import { calculateAge, getAgeCategory, getHighestShikshan, isShikshit } from './dataUtils';
 
-type Tab = 'home' | 'swayamsevak' | 'people' | 'trips' | 'lists' | 'groups' | 'work-status' | 'menu' | 'area-mgmt' | 'cat-mgmt' | 'list-cat-mgmt' | 'calendar' | 'event-cat-mgmt' | 'activities' | 'ideas' | 'events' | 'event-detail' | 'settings' | 'reports' | 'admin' | 'messages';
+type Tab = 'home' | 'swayamsevak' | 'people' | 'trips' | 'lists' | 'groups' | 'work-status' | 'menu' | 'area-mgmt' | 'cat-mgmt' | 'list-cat-mgmt' | 'calendar' | 'event-cat-mgmt' | 'activities' | 'ideas' | 'events' | 'event-detail' | 'settings' | 'reports' | 'admin';
 
-export interface EventModel {
-  id: string;
-  name: string;
-  date: string;
-  time: string;
-  location: string;
-  team: { id: string, name: string, contact: string, role: string, teamRole: string, task: string }[];
-  phases: { id: string, phase: string, startDate: string, endDate: string, task: string, workerName: string, followUp: string, todos?: { id: string, text: string, isCompleted: boolean }[] }[];
-  departments: { id: string, deptName: string, headName: string, prep: string, meetings: string, followUp: string }[];
-  resources: { id: string, itemName: string, type: string, source: string, estCost: number, workerName: string }[];
-  expenses: { id: string, date: string, desc: string, type: string, workerName: string, amount: number, notes: string }[];
-  incomes: { id: string, date: string, desc: string, type: string, workerName: string, amount: number, notes: string }[];
-  executions: { id: string, deptName: string, task: string, workerName: string, followUp: string }[];
-  reviews: { id: string, deptName: string, attendance: string, positive: string, improvement: string, followUp: string }[];
-  contingencies: { id: string, challenge: string, solution: string, workerName: string, contact: string }[];
-}
 
 interface Idea {
   id: string;
@@ -164,59 +148,6 @@ const loadData =<T,>(key: string, defaultValue: T): T => {
   } catch (e) {
     return defaultValue;
   }
-};
-
-export const calculateAge = (dob: string | undefined): number | null => {
-  if (!dob) return null;
-  const d = new Date(dob);
-  if (isNaN(d.getTime())) return null;
-  const diff = Date.now() - d.getTime();
-  const ageDate = new Date(diff); 
-  const years = Math.abs(ageDate.getUTCFullYear() - 1970);
-  const months = ageDate.getUTCMonth();
-  return years + (months / 12);
-};
-
-export const getAgeCategory = (age: number | null): string | null => {
-  if (age === null) return null;
-  if (age< 10) return 'शिशु';
-  if (age >= 10 && age< 15) return 'बाल';
-  if (age >= 15 && age<= 35) return 'तरुण';
-  if (age > 35) return 'प्रौढ़';
-  return null;
-};
-
-const isShikshit = (trainings: any[] | undefined): boolean => {
-  if (!Array.isArray(trainings) || trainings.length === 0) return false;
-  const levels = [
-    'प्रारंभिक शिक्षा वर्ग',
-    'प्राथमिक शिक्षा वर्ग',
-    'प्रथम वर्ष / संघ शिक्षा वर्ग',
-    'द्वितीय वर्ष / का वि व - प्रथम',
-    'तृतीय वर्ष / का वि व - द्वितीय'
-  ];
-  return trainings.some(t => levels.includes(t.class));
-};
-
-export const getHighestShikshan = (trainings: any[] | undefined): string | null => {
-  if (!Array.isArray(trainings) || trainings.length === 0) return null;
-  const levels = [
-    'प्रारंभिक शिक्षा वर्ग',
-    'प्राथमिक शिक्षा वर्ग',
-    'प्रथम वर्ष / संघ शिक्षा वर्ग',
-    'द्वितीय वर्ष / का वि व - प्रथम',
-    'तृतीय वर्ष / का वि व - द्वितीय'
-  ];
-  let highestIndex = -1;
-  let highestName = null;
-  for (const t of trainings) {
-    const idx = levels.indexOf(t.class);
-    if (idx > highestIndex) {
-      highestIndex = idx;
-      highestName = t.class;
-    }
-  }
-  return highestName;
 };
 
 function cleanData(data: any): any {
@@ -327,8 +258,6 @@ const App: React.FC = () => {
   // Core State
   const [ideasRaw, setIdeas] = useState<Idea[]>(() => loadData('ideas', []));
   const [events, setEvents] = useState<EventModel[]>(() => loadData('events', []));
-  const [chatRooms, setChatRooms] = useState<ChatRoom[]>(() => loadData('chatRooms', []));
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => loadData('chatMessages', []));
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [khandsRaw, setKhands] = useState<Khand[]>(() => loadData('khands', INITIAL_KHANDS));
   const [mandalsRaw, setMandals] = useState<Mandal[]>(() => loadData('mandals', INITIAL_MANDALS));
@@ -436,11 +365,7 @@ const App: React.FC = () => {
   useDataSync('roles', roles as any[], setRoles as any, appUser);
   useDataSync('ideas', ideasRaw as any[], setIdeas as any, appUser);
   useDataSync('events', events as any[], setEvents as any, appUser);
-  // Disabled global sync for chat
-  // useDataSync('chatRooms', chatRooms as any[], setChatRooms as any, appUser);
-  // useDataSync('chatMessages', chatMessages as any[], setChatMessages as any, appUser);
 
-  const [notificationToast, setNotificationToast] = useState<{title: string, body: string} | null>(null);
 
   useEffect(() => {
     if (!appUser?.uid || appUser.uid === 'anonymous') return;
@@ -477,56 +402,6 @@ const App: React.FC = () => {
       setOffline();
     };
   }, [appUser?.uid]);
-
-  useEffect(() => {
-    if (!appUser?.uid || appUser.uid === 'anonymous') return;
-    
-    // Request permission for Out-of-app Push Notifications
-    if ('Notification' in window) {
-      Notification.requestPermission();
-    }
-
-    const q = query(collection(db, 'chatRooms'), where('participantIds', 'array-contains', appUser.uid));
-    const unsub = onSnapshot(q, (snap) => {
-      // Look at rooms that just modified
-      snap.docChanges().forEach(change => {
-        if (change.type === 'modified') {
-          const room = change.doc.data() as ChatRoom;
-          // If a new message arrived, and it's not sent by us!
-          if (room.lastSenderId && room.lastSenderId !== appUser.uid) {
-            
-            // Resolve Sender Name (try to find linked contact)
-            let authorName = 'Someone';
-            // We can look them up if we want, or just fallback to 'New Message'
-            authorName = `New message in ${room.name || 'Chat'}`;
-            
-            const messageBody = room.lastMessage || 'Sent an attachment';
-
-            // 1. In-App Notification (Toast)
-            setNotificationToast({ title: authorName, body: messageBody });
-            setTimeout(() => setNotificationToast(null), 5000);
-
-            // 2. Out-of-App Notification (OS)
-            if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification(authorName, {
-                body: messageBody,
-                icon: '/icon-192x192.png' // Use a generic icon or app icon
-              });
-            }
-          }
-        } else if (change.type === 'added') {
-          // If we receive a completely new room where someone else wrote
-          const room = change.doc.data() as ChatRoom;
-          // But usually we don't know if it's new historically or new right now.
-          // In a real app we check timestamps, but we can skip 'added' to avoid spamming on reload.
-        }
-      });
-    }, err => {
-      // Silent catch or standard handler
-    });
-
-    return () => unsub();
-  }, [appUser]);
 
   useEffect(() => {
     async function testConnection() {
@@ -689,8 +564,6 @@ const App: React.FC = () => {
     localStorage.setItem('meetings', JSON.stringify(meetings));
     localStorage.setItem('ideas', JSON.stringify(ideas));
     localStorage.setItem('events', JSON.stringify(events));
-    localStorage.setItem('chatRooms', JSON.stringify(chatRooms));
-    localStorage.setItem('chatMessages', JSON.stringify(chatMessages));
     localStorage.setItem('userName', JSON.stringify(userName));
     localStorage.setItem('callRecords', JSON.stringify(callRecords));
     localStorage.setItem('whatsappMessage', JSON.stringify(whatsappMessage));
@@ -2850,28 +2723,6 @@ const App: React.FC = () => {
 
   return (
    <div className="min-h-[100dvh] w-full relative font-sans transition-colors duration-300 bg-transparent flex">
-     <AnimatePresence>
-       {notificationToast && (
-         <motion.div
-           initial={{ opacity: 0, y: -20, x: '-50%' }}
-           animate={{ opacity: 1, y: 20, x: '-50%' }}
-           exit={{ opacity: 0, y: -20, x: '-50%' }}
-           className="fixed top-0 left-1/2 z-[9999] bg-white dark:bg-gray-800 shadow-2xl border border-gray-200 dark:border-gray-700 p-4 rounded-2xl flex items-center gap-3 min-w-[300px] cursor-pointer"
-           onClick={() => {
-             setNotificationToast(null);
-             setActiveTab('messages');
-           }}
-         >
-           <div className="w-10 h-10 bg-[#FF9933]/10 text-[#FF9933] rounded-full flex items-center justify-center shrink-0">
-             <MessageSquare className="w-5 h-5" />
-           </div>
-           <div className="flex-1 min-w-0">
-             <h4 className="font-bold text-gray-900 dark:text-white truncate">{notificationToast.title}</h4>
-             <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{notificationToast.body}</p>
-           </div>
-         </motion.div>
-       )}
-     </AnimatePresence>
      <AbstractBackground />
 
      {/* Desktop Sidebar */}
@@ -3033,17 +2884,6 @@ const App: React.FC = () => {
         {activeTab === 'cat-mgmt' &&<CatMgmt categories={categories} setCategories={setCategories} onBack={()=>setActiveTab('settings')} setConfirmation={setConfirmation} />}
         {activeTab === 'event-cat-mgmt' &&<CatMgmt title="कार्यक्रम श्रेणी प्रबंधन" categories={eventCategories} setCategories={setEventCategories} onBack={()=>setActiveTab('settings')} setConfirmation={setConfirmation} />}
         {activeTab === 'list-cat-mgmt' &&<CatMgmt title="सूची श्रेणी प्रबंधन" categories={listCategories} setCategories={setListCategories} onBack={()=>setActiveTab('settings')} setConfirmation={setConfirmation} />}
-        {activeTab === 'messages' && (
-          <div className="h-full overflow-hidden w-full relative">
-            <ChatView 
-              appUser={appUser} 
-              contacts={contacts} 
-              events={events}
-              customLists={customLists}
-              onBack={() => setActiveTab('menu')} 
-            />
-          </div>
-        )}
         {activeTab === 'admin' && (
           <div className="h-full overflow-y-auto w-full bg-slate-50 dark:bg-[#070b14]">
             <AdminPanel khands={khands} mandals={mandals} villages={villages} contacts={contacts} />
@@ -5222,7 +5062,7 @@ const SettingsTab = ({
                      </div>
 
                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400 text-xs uppercase tracking-widest font-bold"><MessageSquare size={14}/><span className="font-hindi">टेक्स्ट का आकार</span></div>
+                        <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400 text-xs uppercase tracking-widest font-bold"><Type size={14}/><span className="font-hindi">टेक्स्ट का आकार</span></div>
                         <div className="flex items-center justify-between gap-2 bg-gray-50/50 dark:bg-gray-800/50 p-2 rounded-xl border border-gray-100 dark:border-gray-700/50">
                            <button onClick={()=>setAppFontSize(14)} className={`flex-1 py-2 text-xs rounded-lg transition-all ${appFontSize === 14 ? 'bg-white dark:bg-gray-700 shadow border dark:border-gray-600 text-orange-600 dark:text-orange-400 font-bold' : 'text-gray-600 dark:text-gray-400 font-medium hover:bg-gray-200/50 dark:hover:bg-gray-700/50 block font-hindi'}`}>छोटा</button>
                            <button onClick={()=>setAppFontSize(16)} className={`flex-1 py-2 text-xs rounded-lg transition-all ${appFontSize === 16 ? 'bg-white dark:bg-gray-700 shadow border dark:border-gray-600 text-orange-600 dark:text-orange-400 font-bold' : 'text-gray-600 dark:text-gray-400 font-medium hover:bg-gray-200/50 dark:hover:bg-gray-700/50 block font-hindi'}`}>सामान्य</button>
@@ -5535,14 +5375,6 @@ const MenuTab = ({ userName, setUserName, appUser, hasPermission, setActiveTab, 
             />
           )}
           
-          <GridMenuItem 
-            variant="wide"
-            delay={5.5}
-            icon={MessageSquare} 
-            label="संदेश" 
-            color="bg-teal-500 text-white"
-            onClick={() => setActiveTab('messages')} 
-          />
           {hasPermission('view_reports') && (
             <GridMenuItem 
               variant="wide"
@@ -5973,7 +5805,7 @@ const ActivitiesTab = ({
         {allActivities.length === 0 ? (
          <div className="p-8 text-center bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 dark:border-gray-800 rounded-2xl shadow-sm">
            <div className="w-12 h-12 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-3">
-              <MessageSquare className="text-gray-400" size={24} />
+              <ClipboardList className="text-gray-400" size={24} />
            </div>
            <p className="text-xs font-medium text-gray-400 uppercase tracking-widest leading-normal">कोई गतिविधि नहीं मिली</p>
          </div>
