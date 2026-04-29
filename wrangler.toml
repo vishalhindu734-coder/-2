@@ -1,0 +1,5 @@
+name = "pravaas-plan"
+compatibility_date = "2024-04-28"
+
+[assets]
+directory = "./dist"

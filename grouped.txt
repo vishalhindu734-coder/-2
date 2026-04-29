@@ -1,0 +1,59 @@
+            <div className="bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] dark:border-gray-700/50 p-3 rounded-xl space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(stats.statsByKhand).map(([kName, data]) => {
+                  // Only show if the khand has data or if no specific khand is filtered
+                  if (dashKhand !== 'all' && getKhandName(dashKhand) !== kName) return null;
+--
+                      </div>
+                      <div className="space-y-1.5">
+                        {Object.entries(data.mandals).map(([mName, counts]) => (
+                          <div key={mName} className="text-xs text-orange-700 dark:text-orange-300 flex justify-between items-center gap-0.5">
+                            <span className="truncate flex-1 font-medium">{mName}</span>
+--
+          <h3 className="text-lg font-bold dark:text-white uppercase tracking-widest text-gray-400">श्रेणी अनुसार</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {Object.entries(stats.byCategory).map(([cat, count]) => (
+              <div 
+                 key={cat} 
+--
+          <h3 className="text-lg font-bold dark:text-white uppercase tracking-widest text-gray-400">शक्ति अनुसार</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {Object.entries(stats.byStatus).map(([status, count]) => (
+              <div 
+                 key={status} 
+--
+          {Object.keys(stats.byAgeCategory).length > 0 ? (
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(stats.byAgeCategory).map(([cat, count]) => (
+                <div 
+                   key={cat} 
+--
+            <div className="py-12 text-center text-gray-400 font-medium bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 dark:border-gray-800 rounded-2xl text-xs uppercase tracking-widest opacity-60">कोई संपर्क नहीं मिला</div>
+          ) : (
+            Object.entries(grouped).sort().map(([mandalName, villageGroup]) => (
+              <div key={mandalName} className="space-y-2">
+                <div className="flex items-center gap-2 px-1">
+--
+                
+                <div className="grid grid-cols-1 gap-2">
+                  {Object.entries(villageGroup).sort().map(([villageName, people]) => (
+                    <div key={villageName} className="space-y-1.5">
+                      <div className="flex items-center gap-1.5 px-2 text-gray-400">
+--
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(statsByKhand).map(([kName, data]) => (
+                    <div key={kName} className="bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100/50 dark:border-orange-800/30 rounded-xl p-2 min-h-0 overflow-hidden">
+                      <div className="flex justify-between items-center mb-1 pb-1 border-b dark:border-orange-800/50">
+--
+                      </div>
+                      <div className="grid grid-cols-1 gap-0.5 max-h-[100px] overflow-y-auto no-scrollbar">
+                        {Object.entries(data.mandals).filter(([_, c]) => c.planned > 0).map(([mName, counts]) => (
+                          <div key={mName} className="flex justify-between items-center px-1">
+                            <span className="text-[8px] font-medium text-gray-500 dark:text-gray-400 truncate max-w-[60%]">{mName}</span>
+--
+                   }, {});
+
+                   return Object.entries(groupedContacts).map(([vId, vContacts]: [string, any]) => {
+                     const vName = vId === 'other' ? 'अन्य' : villages.find((v:any)=>v.id===vId)?.name || 'Unknown';
+                     return (

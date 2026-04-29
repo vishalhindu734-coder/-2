@@ -1,0 +1,382 @@
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Tiro+Devanagari+Hindi:ital@0;1&family=Mukta:wght@400;500;700&family=Noto+Sans+Devanagari:wght@400;500;700&family=Noto+Serif+Devanagari:wght@400;500;700&family=Yatra+One&family=Kalam:wght@400;700&family=Amita:wght@400;700&family=Rajdhani:wght@400;500;700&family=Hind:wght@400;500;700&family=Rozha+One&family=Eczar:wght@400;500;700&family=Poppins:wght@400;500;600&family=Laila:wght@400;500;600&family=Karma:wght@400;500;600&family=Sura:wght@400;700&family=Vesper+Libre:wght@400;500&family=Tillana:wght@400;500;600&family=Glegoo:wght@400;700&family=Khula:wght@400;600&family=Yantramanav:wght@400;500;700&family=Martel:wght@400;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--app-font-family);
+  --font-serif: var(--app-font-family);
+  --font-mono: var(--app-font-family);
+  --font-hindi: var(--app-font-family);
+
+  --color-blue-50: var(--blue-50);
+  --color-blue-100: var(--blue-100);
+  --color-blue-200: var(--blue-200);
+  --color-blue-300: var(--blue-300);
+  --color-blue-400: var(--blue-400);
+  --color-blue-500: var(--blue-500);
+  --color-blue-600: var(--blue-600);
+  --color-blue-700: var(--blue-700);
+  --color-blue-800: var(--blue-800);
+  --color-blue-900: var(--blue-900);
+
+  --color-indigo-50: var(--indigo-50);
+  --color-indigo-100: var(--indigo-100);
+  --color-indigo-200: var(--indigo-200);
+  --color-indigo-300: var(--indigo-300);
+  --color-indigo-400: var(--indigo-400);
+  --color-indigo-500: var(--indigo-500);
+  --color-indigo-600: var(--indigo-600);
+  --color-indigo-700: var(--indigo-700);
+  --color-indigo-800: var(--indigo-800);
+  --color-indigo-900: var(--indigo-900);
+
+  --color-orange-50: var(--orange-50);
+  --color-orange-100: var(--orange-100);
+  --color-orange-200: var(--orange-200);
+  --color-orange-300: var(--orange-300);
+  --color-orange-400: var(--orange-400);
+  --color-orange-500: var(--orange-500);
+  --color-orange-600: var(--orange-600);
+  --color-orange-700: var(--orange-700);
+  --color-orange-800: var(--orange-800);
+  --color-orange-900: var(--orange-900);
+}
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Default Theme (Blue/Indigo/Orange) */
+  --blue-50: #eff6ff;
+  --blue-100: #dbeafe;
+  --blue-200: #bfdbfe;
+  --blue-300: #93c5fd;
+  --blue-400: #60a5fa;
+  --blue-500: #3b82f6;
+  --blue-600: #2563eb;
+  --blue-700: #1d4ed8;
+  --blue-800: #1e40af;
+  --blue-900: #1e3a8a;
+
+  --indigo-50: #eef2ff;
+  --indigo-100: #e0e7ff;
+  --indigo-200: #c7d2fe;
+  --indigo-300: #a5b4fc;
+  --indigo-400: #818cf8;
+  --indigo-500: #6366f1;
+  --indigo-600: #4f46e5;
+  --indigo-700: #4338ca;
+  --indigo-800: #3730a3;
+  --indigo-900: #312e81;
+
+  --orange-50: #fff7ed;
+  --orange-100: #ffedd5;
+  --orange-200: #fed7aa;
+  --orange-300: #fdba74;
+  --orange-400: #fb923c;
+  --orange-500: #f97316;
+  --orange-600: #ea580c;
+  --orange-700: #c2410c;
+  --orange-800: #9a3412;
+  --orange-900: #7c2d12;
+
+  --app-font-size: 16px;
+}
+
+html {
+  font-size: var(--app-font-size);
+}
+
+/* Theme 1 - Green/Emerald/Amber (Nature) */
+.theme-nature {
+  --blue-50: #f0fdf4;
+  --blue-100: #dcfce7;
+  --blue-200: #bbf7d0;
+  --blue-300: #86efac;
+  --blue-400: #4ade80;
+  --blue-500: #22c55e;
+  --blue-600: #16a34a;
+  --blue-700: #15803d;
+  --blue-800: #166534;
+  --blue-900: #14532d;
+
+  --indigo-50: #ecfdf5;
+  --indigo-100: #d1fae5;
+  --indigo-200: #a7f3d0;
+  --indigo-300: #6ee7b7;
+  --indigo-400: #34d399;
+  --indigo-500: #10b981;
+  --indigo-600: #059669;
+  --indigo-700: #047857;
+  --indigo-800: #065f46;
+  --indigo-900: #064e3b;
+
+  --orange-50: #fffbeb;
+  --orange-100: #fef3c7;
+  --orange-200: #fde68a;
+  --orange-300: #fcd34d;
+  --orange-400: #fbbf24;
+  --orange-500: #f59e0b;
+  --orange-600: #d97706;
+  --orange-700: #b45309;
+  --orange-800: #92400e;
+  --orange-900: #78350f;
+}
+
+/* Theme 2 - Rose/Pink/Violet (Warm) */
+.theme-rose {
+  --blue-50: #fff1f2;
+  --blue-100: #ffe4e6;
+  --blue-200: #fecdd3;
+  --blue-300: #fda4af;
+  --blue-400: #fb7185;
+  --blue-500: #f43f5e;
+  --blue-600: #e11d48;
+  --blue-700: #be123c;
+  --blue-800: #9f1239;
+  --blue-900: #881337;
+
+  --indigo-50: #fdf4ff;
+  --indigo-100: #fae8ff;
+  --indigo-200: #f3e8ff; /* violet instead of pink */
+  --indigo-300: #f0abfc;
+  --indigo-400: #e879f9;
+  --indigo-500: #d946ef;
+  --indigo-600: #c026d3;
+  --indigo-700: #a21caf;
+  --indigo-800: #86198f;
+  --indigo-900: #701a75;
+
+  --orange-50: #f5f3ff;
+  --orange-100: #ede9fe;
+  --orange-200: #ddd6fe;
+  --orange-300: #c4b5fd;
+  --orange-400: #a78bfa;
+  --orange-500: #8b5cf6;
+  --orange-600: #7c3aed;
+  --orange-700: #6d28d9;
+  --orange-800: #5b21b6;
+  --orange-900: #4c1d95;
+}
+
+/* Theme 3 - Ocean (Sky/Cyan/Teal) */
+.theme-ocean {
+  --blue-50: #f0f9ff;
+  --blue-100: #e0f2fe;
+  --blue-200: #bae6fd;
+  --blue-300: #7dd3fc;
+  --blue-400: #38bdf8;
+  --blue-500: #0ea5e9;
+  --blue-600: #0284c7;
+  --blue-700: #0369a1;
+  --blue-800: #075985;
+  --blue-900: #0c4a6e;
+
+  --indigo-50: #ecfeff;
+  --indigo-100: #cffafe;
+  --indigo-200: #a5f3fc;
+  --indigo-300: #67e8f9;
+  --indigo-400: #22d3ee;
+  --indigo-500: #06b6d4;
+  --indigo-600: #0891b2;
+  --indigo-700: #0e7490;
+  --indigo-800: #155e75;
+  --indigo-900: #164e63;
+
+  --orange-50: #f0fdfa;
+  --orange-100: #ccfbf1;
+  --orange-200: #99f6e4;
+  --orange-300: #5eead4;
+  --orange-400: #2dd4bf;
+  --orange-500: #14b8a6;
+  --orange-600: #0d9488;
+  --orange-700: #0f766e;
+  --orange-800: #115e59;
+  --orange-900: #134e4a;
+}
+
+/* Theme 4 - Sunset (Red/Rose/Amber) */
+.theme-sunset {
+  --blue-50: #fef2f2;
+  --blue-100: #fee2e2;
+  --blue-200: #fecaca;
+  --blue-300: #fca5a5;
+  --blue-400: #f87171;
+  --blue-500: #ef4444;
+  --blue-600: #dc2626;
+  --blue-700: #b91c1c;
+  --blue-800: #991b1b;
+  --blue-900: #7f1d1d;
+
+  --indigo-50: #fff1f2;
+  --indigo-100: #ffe4e6;
+  --indigo-200: #fecdd3;
+  --indigo-300: #fda4af;
+  --indigo-400: #fb7185;
+  --indigo-500: #f43f5e;
+  --indigo-600: #e11d48;
+  --indigo-700: #be123c;
+  --indigo-800: #9f1239;
+  --indigo-900: #881337;
+
+  --orange-50: #fffbeb;
+  --orange-100: #fef3c7;
+  --orange-200: #fde68a;
+  --orange-300: #fcd34d;
+  --orange-400: #fbbf24;
+  --orange-500: #f59e0b;
+  --orange-600: #d97706;
+  --orange-700: #b45309;
+  --orange-800: #92400e;
+  --orange-900: #78350f;
+}
+
+/* Theme 5 - Monochrome (Slate/Gray/Zinc) */
+.theme-monochrome {
+  --blue-50: #f8fafc;
+  --blue-100: #f1f5f9;
+  --blue-200: #e2e8f0;
+  --blue-300: #cbd5e1;
+  --blue-400: #94a3b8;
+  --blue-500: #64748b;
+  --blue-600: #475569;
+  --blue-700: #334155;
+  --blue-800: #1e293b;
+  --blue-900: #0f172a;
+
+  --indigo-50: #f9fafb;
+  --indigo-100: #f3f4f6;
+  --indigo-200: #e5e7eb;
+  --indigo-300: #d1d5db;
+  --indigo-400: #9ca3af;
+  --indigo-500: #6b7280;
+  --indigo-600: #4b5563;
+  --indigo-700: #374151;
+  --indigo-800: #1f2937;
+  --indigo-900: #111827;
+
+  --orange-50: #fafafa;
+  --orange-100: #f4f4f5;
+  --orange-200: #e4e4e7;
+  --orange-300: #d4d4d8;
+  --orange-400: #a1a1aa;
+  --orange-500: #71717a;
+  --orange-600: #52525b;
+  --orange-700: #3f3f46;
+  --orange-800: #27272a;
+  --orange-900: #18181b;
+}
+
+:root {
+  --app-font-family: 'Baloo 2', ui-sans-serif, system-ui, sans-serif;
+}
+:root.font-baloo { 
+  --app-font-family: 'Baloo 2', ui-sans-serif, system-ui, sans-serif; 
+}
+:root.font-tiro { 
+  --app-font-family: 'Tiro Devanagari Hindi', ui-serif, Georgia, serif; 
+}
+:root.font-mukta { --app-font-family: 'Mukta', ui-sans-serif, sans-serif; }
+:root.font-noto-sans { --app-font-family: 'Noto Sans Devanagari', ui-sans-serif, sans-serif; }
+:root.font-noto-serif { --app-font-family: 'Noto Serif Devanagari', ui-serif, serif; }
+:root.font-yatra { --app-font-family: 'Yatra One', ui-sans-serif, sans-serif; }
+:root.font-kalam { --app-font-family: 'Kalam', cursive, sans-serif; }
+:root.font-amita { --app-font-family: 'Amita', cursive, serif; }
+:root.font-rajdhani { --app-font-family: 'Rajdhani', ui-sans-serif, sans-serif; }
+:root.font-hind { --app-font-family: 'Hind', ui-sans-serif, sans-serif; }
+:root.font-rozha { --app-font-family: 'Rozha One', ui-serif, serif; }
+:root.font-eczar { --app-font-family: 'Eczar', ui-serif, serif; }
+:root.font-poppins { --app-font-family: 'Poppins', ui-sans-serif, sans-serif; }
+:root.font-laila { --app-font-family: 'Laila', ui-sans-serif, sans-serif; }
+:root.font-karma { --app-font-family: 'Karma', ui-serif, serif; }
+:root.font-sura { --app-font-family: 'Sura', ui-serif, serif; }
+:root.font-vesper { --app-font-family: 'Vesper Libre', ui-serif, serif; }
+:root.font-tillana { --app-font-family: 'Tillana', cursive, sans-serif; }
+:root.font-glegoo { --app-font-family: 'Glegoo', ui-serif, serif; }
+:root.font-khula { --app-font-family: 'Khula', ui-sans-serif, sans-serif; }
+:root.font-yantramanav { --app-font-family: 'Yantramanav', ui-sans-serif, sans-serif; }
+:root.font-martel { --app-font-family: 'Martel', ui-serif, serif; }
+
+@utility glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+@utility glass-dark {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@utility abstract-btn {
+  @apply relative overflow-hidden transition-all duration-300;
+  &::before {
+    content: '';
+    @apply absolute inset-0 bg-white/10 opacity-0 transition-opacity duration-300;
+  }
+  &:hover::before {
+    @apply opacity-100;
+  }
+  &::after {
+    content: '';
+    @apply absolute -inset-full bg-linear-to-tr from-transparent via-white/10 to-transparent rotate-45 translate-x-[-100%] transition-transform duration-700;
+  }
+  &:hover::after {
+    @apply translate-x-[100%];
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-20px) scale(1.05); }
+}
+
+@keyframes float-delayed {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(10px, -15px) scale(1.02); }
+  66% { transform: translate(-10px, 10px) scale(0.98); }
+}
+
+.animate-float {
+  animation: float 8s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: float-delayed 12s ease-in-out infinite;
+}
+
+body {
+  @apply bg-gray-50 text-gray-900 transition-colors duration-200;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dark body {
+  @apply bg-gray-950 text-gray-100;
+}
+
+.bottom-nav {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 10px;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

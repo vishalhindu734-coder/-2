@@ -1,0 +1,167 @@
+{
+  "entities": {
+    "Contact": {
+      "title": "Contact",
+      "description": "A contact or volunteer",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "khandId": { "type": "string" },
+        "mandalId": { "type": "string" },
+        "villageId": { "type": "string" }
+      }
+    },
+    "Village": {
+      "title": "Village",
+      "description": "Village data",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      }
+    },
+    "Mandal": {
+      "title": "Mandal",
+      "description": "Mandal data",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      }
+    },
+    "Khand": {
+      "title": "Khand",
+      "description": "Khand data",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      }
+    },
+    "TripPlan": {
+      "title": "Trip Plan",
+      "description": "Trip or visit plan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" }
+      }
+    },
+    "CustomList": {
+      "title": "Custom List",
+      "description": "Group or List of contacts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      }
+    },
+    "Meeting": {
+      "title": "Meeting",
+      "description": "Meeting data",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" }
+      }
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Category for contacts and events",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      }
+    },
+    "Event": {
+      "title": "Event",
+      "description": "Event Model",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      }
+    },
+    "Idea": {
+      "title": "Idea",
+      "description": "Idea Model",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "content": { "type": "string" }
+      }
+    },
+    "AppRole": {
+      "title": "AppRole",
+      "description": "Role with permissions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      }
+    },
+    "AppUser": {
+      "title": "AppUser",
+      "description": "Application User with assigned role",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "roleId": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/roles/{roleId}": {
+      "schema": "AppRole",
+      "description": "Role definitions"
+    },
+    "/users/{userId}": {
+      "schema": "AppUser",
+      "description": "App Users representing people using the software"
+    },
+    "/contacts/{contactId}": {
+      "schema": "Contact",
+      "description": "Contacts information"
+    },
+    "/villages/{villageId}": {
+      "schema": "Village",
+      "description": "Villages information"
+    },
+    "/mandals/{mandalId}": {
+      "schema": "Mandal",
+      "description": "Mandals information"
+    },
+    "/khands/{khandId}": {
+      "schema": "Khand",
+      "description": "Khands information"
+    },
+    "/trips/{tripId}": {
+      "schema": "TripPlan",
+      "description": "Trips information"
+    },
+    "/lists/{listId}": {
+      "schema": "CustomList",
+      "description": "Custom lists"
+    },
+    "/meetings/{meetingId}": {
+      "schema": "Meeting",
+      "description": "Meetings"
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Categories"
+    },
+    "/events/{eventId}": {
+      "schema": "Event",
+      "description": "Events"
+    },
+    "/ideas/{ideaId}": {
+      "schema": "Idea",
+      "description": "Ideas"
+    }
+  }
+}

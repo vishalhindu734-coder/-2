@@ -1,0 +1,74 @@
+115:type Tab = 'home' | 'swayamsevak' | 'people' | 'trips' | 'lists' | 'groups' | 'work-status' | 'menu' | 'area-mgmt' | 'cat-mgmt' | 'calendar' | 'event-cat-mgmt' | 'activities' | 'ideas' | 'events' | 'event-detail' | 'settings' | 'reports';
+821:    // Grouping logic: Mandal -> Village -> Contacts
+822:    const grouped: Record<string, Record<string, typeof contacts>> = {};
+826:      if (!grouped[mandalName]) grouped[mandalName] = {};
+827:      if (!grouped[mandalName][villageName]) grouped[mandalName][villageName] = [];
+828:      grouped[mandalName][villageName].push(c);
+897:          {Object.keys(grouped).length === 0 ? (
+900:            Object.entries(grouped).sort().map(([mandalName, villageGroup]) => (
+908:                  {Object.entries(villageGroup).sort().map(([villageName, people]) => (
+922:                            <motion.div key={c.id} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-20px' }} transition={{ duration: 0.4 }} onClick={() => setSelectedContactId(c.id)} className="bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/30 dark:border-gray-800/50 p-3 rounded-xl flex items-center gap-3 active:scale-[0.95] active:bg-indigo-100/80 dark:active:bg-indigo-900/60 active:ring-2 active:ring-indigo-400/50 transition-all shadow-sm group">
+1703:    // Group by Khand then Mandal (filtered by dashStage)
+1706:    const groupedData = khands
+1781:          {groupedData.map(khand => (
+1806:          {groupedData.length === 0 && (
+2385:    className={`flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-[1.2rem] transition-all relative group outline-none
+2396:        : 'text-gray-400 dark:text-gray-500 group-hover:scale-110 group-hover:text-blue-500'
+2411:  <div onClick={onClick} className={`${color} p-2 rounded-lg shadow-sm border border-transparent dark:border-gray-800 active:scale-95 transition-all flex flex-col justify-center items-center cursor-pointer relative overflow-hidden group`}>
+2412:     <div className="absolute -right-2 -top-2 w-8 h-8 bg-white/20 dark:bg-white/5 rounded-full blur-lg group-hover:scale-150 transition-transform duration-500"></div>
+2473:                 <div className="p-2 border-r border-gray-200 dark:border-gray-800 font-medium dark:text-gray-200 uppercase">{contact.volunteerProfile?.bloodGroup || '-'}</div>
+2552:                  <div key={h.id} className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-sm border dark:border-gray-800 relative group">
+2595:              <div onClick={() => setIsEditingName(true)} className="flex-1 cursor-pointer group">
+2596:                <h2 className="text-2xl font-bold dark:text-white group-hover:text-blue-600 transition-colors">{village.name}</h2>
+2914:                     <input placeholder="रक्त समूह (ex A+)" className="w-full p-2 bg-white dark:bg-[#070b14] dark:text-white rounded border border-gray-200 dark:border-gray-700 text-xs font-medium uppercase outline-none placeholder:text-gray-400" value={profile.bloodGroup || ''} onChange={e=>updateProfile('bloodGroup', e.target.value)} />
+3129:                   const groupedContacts = mandalContacts.reduce((acc: any, c: any) => {
+3136:                   return Object.entries(groupedContacts).map(([vId, vContacts]: [string, any]) => {
+3252:  const groupedSchedule: any[] = [];
+3253:  let currentGroup: any = null;
+3257:      if (currentGroup) {
+3258:        currentGroup.items.push(item);
+3260:        groupedSchedule.push({ type: 'now', item });
+3263:      if (!currentGroup) {
+3264:        currentGroup = { type: 'village', villageId: item.villageId, items: [item], id: `group_${item.villageId}_${item.id}` };
+3265:      } else if (currentGroup.villageId === item.villageId) {
+3266:        currentGroup.items.push(item);
+3268:        groupedSchedule.push(currentGroup);
+3269:        currentGroup = { type: 'village', villageId: item.villageId, items: [item], id: `group_${item.villageId}_${item.id}` };
+3273:  if (currentGroup) {
+3274:    groupedSchedule.push(currentGroup);
+3377:              className="bg-blue-50 dark:bg-blue-900/20 p-2.5 rounded-lg border border-blue-100 dark:border-blue-800/40 space-y-1 shadow-sm relative overflow-hidden group"
+3379:               <div className="absolute top-0 right-0 p-6 bg-blue-500/5 rounded-full -mr-4 -mt-4 group-hover:scale-110 transition-transform duration-700" />
+3411:                    {groupedSchedule.map((group: any) => {
+3412:                       if (group.type === 'now') {
+3413:                          const item = group.item;
+3436:                          key={group.id} 
+3444:                                {getVillageName(group.villageId)}
+3448:                               {group.items.map((item: any) => {
+3471:                                   <div key={item.id} className="relative group/slot min-h-[56px] flex flex-col justify-center p-3 border-b border-gray-100 dark:border-gray-800/50 last:border-0">
+3475:                                      <div className="absolute left-[-19px] top-1/2 -translate-y-1/2 w-2 h-2 bg-blue-600 rounded-full ring-2 ring-white dark:ring-[#070b14] z-10 outline outline-1 outline-blue-100 dark:outline-blue-900/50 transition-transform group-hover/slot:scale-125"></div>
+3477:                                      <div className="absolute right-2 top-2 flex gap-1.5 text-gray-400 z-10 opacity-0 group-hover/slot:opacity-100 transition-opacity">
+3490:                                              <div className="flex-1 min-w-[100px] cursor-pointer group/name" onClick={() => onLogVisit(item.contactId)}>
+3491:                                                <div className="text-[13px] font-medium dark:text-white group-hover/name:text-blue-500 transition-colors uppercase truncate tracking-tight">{contact?.name}</div>
+3537:                        className="bg-white/60 dark:bg-[#0b1221]/60 backdrop-blur-xl border border-white/50 border-t-white/80 shadow-sm px-2.5 py-1 rounded-lg border dark:border-gray-700/50 flex items-center gap-2 group cursor-move hover:border-indigo-400 dark:hover:border-indigo-500/50 transition-colors select-none"
+3546:                            className="opacity-20 group-hover:opacity-100 transition-opacity text-gray-400 shrink-0" 
+4695:                          <div key={k.id} className="flex gap-2 p-2.5 bg-white/60 dark:bg-[#0a101f]/60 rounded-lg border border-emerald-100 dark:border-emerald-800/50 shadow-sm relative group">
+4718:                                className="text-gray-400 hover:text-red-500 p-1.5 active:scale-95 transition-all self-start md:opacity-0 md:group-hover:opacity-100"
+4912:  const groupedIdeas = useMemo(() => {
+4913:    const groups: { id: string, date: string, content: string, isCompleted: boolean, contactIds: string[], villageId?: string, mandalId?: string, ideas: any[] }[] = [];
+4919:      const existing = groups.find(g => g.content.trim() === idea.content.trim() && g.isCompleted === idea.isCompleted);
+4924:        groups.push({ id: idea.id, content: idea.content, isCompleted: idea.isCompleted, date: idea.date, contactIds: idea.contactId ? [idea.contactId] : [], villageId: idea.villageId, mandalId: idea.mandalId, ideas: [idea] });
+4927:    return groups;
+4958:        {groupedIdeas.length === 0 ? (
+4966:          groupedIdeas.map((group: any) => {
+4967:            const hasMultipleContacts = group.contactIds.length > 1;
+4968:            const singleContact = !hasMultipleContacts && group.contactIds.length === 1 ? contacts.find((c: any) => c.id === group.contactIds[0]) : null;
+4969:            const village = villages.find((v: any) => v.id === group.villageId);
+4970:            const mandal = mandals.find((m: any) => m.id === group.mandalId);
+4973:              <div key={group.id} className={`glass dark:glass-dark p-5 rounded-2xl border dark:border-gray-800 shadow-xl flex flex-col gap-3 transition-all relative overflow-hidden group ${group.isCompleted ? 'opacity-60 grayscale-[0.5]' : ''}`}>
+4974:                <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 opacity-20 group-hover:opacity-100 transition-opacity"></div>
+4978:                      {new Date(group.date).toLocaleDateString('hi-IN')}
+4979:                      {hasMultipleContacts && ` • ${group.contactIds.length} संपर्कों से जुड़ा`}
+4984:                    <p className={`font-medium text-sm dark:text-white ${group.isCompleted ? 'line-through text-gray-400' : ''}`}>{group.content}</p>
+4989:                         group.ideas.forEach((i: Idea) => onUpdate(i.id, { isCompleted: !group.isCompleted }));
+4991:                      className={`p-2 rounded-sm active:scale-95 transition-all ${group.isCompleted ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}`}
+4996:                        group.ideas.forEach((i: Idea) => onDelete(i.id));

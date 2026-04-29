@@ -1,0 +1,5 @@
+1535:               <h2 className="text-xl font-bold dark:text-white">{list.name}</h2>
+1539:                  onClick={() => setExportTarget({ data: contacts.filter(c => list.peopleIds.includes(c.id)), title: `सूची_${list.name}` })}
+1653:                      <div className="font-medium dark:text-white">{list.name}</div>
+1663:                          message: `क्या आप '${list.name}' सूची को हटाना चाहते हैं?`,
+4306:          <h2 className="text-xl font-bold dark:text-white tracking-tight font-hindi">सदस्य प्रबंधन: {list.name}</h2>

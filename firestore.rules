@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitives
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    function isValidContact(data) {
+      return data.keys().hasAll(['id']) && data.id is string
+        && (!('name' in data) || data.name is string)
+        && (!('phone' in data) || data.phone is string);
+    }
+    
+    // Simplistic access for authenticated users while we design the Admin panel and RBAC
+    match /contacts/{contactId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(contactId) && isValidContact(incoming());
+      allow update: if isSignedIn() && isValidContact(incoming());
+      allow delete: if isSignedIn();
+    }
+    
+    match /villages/{villageId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    match /mandals/{mandalId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    match /khands/{khandId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    match /trips/{tripId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    match /lists/{listId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    match /meetings/{meetingId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    match /categories/{categoryId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    match /events/{eventId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    match /ideas/{ideaId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    match /roles/{roleId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+  }
+}
