@@ -162,6 +162,14 @@
     "/ideas/{ideaId}": {
       "schema": "Idea",
       "description": "Ideas"
+    },
+    "/eventCategories/{categoryId}": {
+      "schema": "Category",
+      "description": "Event Categories"
+    },
+    "/listCategories/{categoryId}": {
+      "schema": "Category",
+      "description": "List Categories"
     }
   }
 }

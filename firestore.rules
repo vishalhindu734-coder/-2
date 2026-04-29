@@ -77,6 +77,16 @@ service cloud.firestore {
       allow create, update, delete: if isSignedIn();
     }
 
+    match /eventCategories/{categoryId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    match /listCategories/{categoryId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create, update, delete: if isSignedIn();

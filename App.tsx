@@ -123,7 +123,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { generateVolunteerTemplate, parseVolunteerExcel } from './excelUtils';
 import { auth, db, signInWithGoogle, logout, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, updateDoc, collection, onSnapshot, getDocFromServer } from 'firebase/firestore';
 import { AppUser } from './types';
 
 type Tab = 'home' | 'swayamsevak' | 'people' | 'trips' | 'lists' | 'groups' | 'work-status' | 'menu' | 'area-mgmt' | 'cat-mgmt' | 'list-cat-mgmt' | 'calendar' | 'event-cat-mgmt' | 'activities' | 'ideas' | 'events' | 'event-detail' | 'settings' | 'reports' | 'admin';
@@ -218,6 +218,57 @@ export const getHighestShikshan = (trainings: any[] | undefined): string | null 
   return highestName;
 };
 
+function useDataSync<T extends {id: string}>(
+  collectionName: string,
+  localData: T[],
+  setLocalData: React.Dispatch<React.SetStateAction<T[]>>,
+  appUser: any
+) {
+  const isInternalUpdate = useRef(false);
+  const prevData = useRef<T[]>(localData);
+
+  useEffect(() => {
+    if (!appUser?.uid) return;
+    const unsub = onSnapshot(collection(db, collectionName), (snap) => {
+      const data = snap.docs.map(d => d.data() as T);
+      isInternalUpdate.current = true;
+      setLocalData(data);
+      // Reset safely after render
+      setTimeout(() => {
+        isInternalUpdate.current = false;
+        prevData.current = data;
+      }, 50);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, collectionName);
+    });
+    return () => unsub();
+  }, [appUser, collectionName, setLocalData]);
+
+  useEffect(() => {
+    if (!appUser?.uid) return;
+    if (isInternalUpdate.current) {
+       prevData.current = localData;
+       return;
+    }
+
+    const oldMap = new Map((prevData.current || []).map(i => [i.id, i]));
+    const newMap = new Map((localData || []).map(i => [i.id, i]));
+
+    for (const [id, item] of newMap) {
+      const oldItem = oldMap.get(id);
+      if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
+        setDoc(doc(db, collectionName, id), item, {merge: true}).catch(e => handleFirestoreError(e, OperationType.WRITE, `${collectionName}/${id}`));
+      }
+    }
+    for (const id of oldMap.keys()) {
+      if (!newMap.has(id)) {
+        deleteDoc(doc(db, collectionName, id)).catch(e => handleFirestoreError(e, OperationType.DELETE, `${collectionName}/${id}`));
+      }
+    }
+    prevData.current = localData;
+  }, [localData, appUser, collectionName]);
+}
+
 const App: React.FC = () => {
   // Auth State
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
@@ -291,6 +342,32 @@ const App: React.FC = () => {
   const [selectedPeopleIds, setSelectedPeopleIds] = useState<string[]>([]);
     const [isBulkUpdateModalOpen, setIsBulkUpdateModalOpen] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+
+  useDataSync('contacts', contacts as any[], setContacts as any, appUser);
+  useDataSync('khands', khands as any[], setKhands as any, appUser);
+  useDataSync('mandals', mandals as any[], setMandals as any, appUser);
+  useDataSync('villages', villages as any[], setVillages as any, appUser);
+  useDataSync('trips', trips as any[], setTrips as any, appUser);
+  useDataSync('lists', customLists as any[], setCustomLists as any, appUser);
+  useDataSync('categories', categories as any[], setCategories as any, appUser);
+  useDataSync('eventCategories', eventCategories as any[], setEventCategories as any, appUser);
+  useDataSync('listCategories', listCategories as any[], setListCategories as any, appUser);
+  useDataSync('meetings', meetings as any[], setMeetings as any, appUser);
+  useDataSync('ideas', ideas as any[], setIdeas as any, appUser);
+  useDataSync('events', events as any[], setEvents as any, appUser);
+
+  useEffect(() => {
+    async function testConnection() {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if(error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration.");
+        }
+      }
+    }
+    testConnection();
+  }, []);
   
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
