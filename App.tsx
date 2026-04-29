@@ -218,6 +218,10 @@ export const getHighestShikshan = (trainings: any[] | undefined): string | null 
   return highestName;
 };
 
+function cleanData(data: any): any {
+  return JSON.parse(JSON.stringify(data));
+}
+
 function useDataSync<T extends {id: string}>(
   collectionName: string,
   localData: T[],
@@ -226,11 +230,29 @@ function useDataSync<T extends {id: string}>(
 ) {
   const isInternalUpdate = useRef(false);
   const prevData = useRef<T[]>(localData);
+  const firstSyncDone = useRef(false);
 
   useEffect(() => {
     if (!appUser?.uid) return;
     const unsub = onSnapshot(collection(db, collectionName), (snap) => {
       const data = snap.docs.map(d => d.data() as T);
+      
+      if (!firstSyncDone.current) {
+        if (data.length === 0 && localData && localData.length > 0) {
+          const syncLocalData = async () => {
+             for (const item of localData) {
+               if (item.id) {
+                 await setDoc(doc(db, collectionName, item.id), cleanData(item), {merge: true}).catch(e => handleFirestoreError(e, OperationType.WRITE, collectionName));
+               }
+             }
+          };
+          syncLocalData();
+          firstSyncDone.current = true;
+          return;
+        }
+        firstSyncDone.current = true;
+      }
+
       isInternalUpdate.current = true;
       setLocalData(data);
       // Reset safely after render
@@ -255,12 +277,14 @@ function useDataSync<T extends {id: string}>(
     const newMap = new Map((localData || []).map(i => [i.id, i]));
 
     for (const [id, item] of newMap) {
+      if (!id) continue;
       const oldItem = oldMap.get(id);
       if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
-        setDoc(doc(db, collectionName, id), item, {merge: true}).catch(e => handleFirestoreError(e, OperationType.WRITE, `${collectionName}/${id}`));
+        setDoc(doc(db, collectionName, id), cleanData(item), {merge: true}).catch(e => handleFirestoreError(e, OperationType.WRITE, `${collectionName}/${id}`));
       }
     }
     for (const id of oldMap.keys()) {
+      if (!id) continue;
       if (!newMap.has(id)) {
         deleteDoc(doc(db, collectionName, id)).catch(e => handleFirestoreError(e, OperationType.DELETE, `${collectionName}/${id}`));
       }
