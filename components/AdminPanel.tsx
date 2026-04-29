@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Users as UsersIcon, Plus, Check, X, ShieldCheck, Mail, Save, RefreshCw, MapPin } from 'lucide-react';
-import { AppRole, AppUser, Permission, Khand, Mandal, Village } from '../types';
+import { AppRole, AppUser, Permission, Khand, Mandal, Village, Contact } from '../types';
 import { db, handleFirestoreError, OperationType, auth } from '../firebase';
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { SearchableContactSelect } from './SearchableContactSelect';
 
 export const PERMISSIONS: { id: Permission; label: string; desc: string }[] = [
   { id: 'manage_users', label: 'Manage Users', desc: 'Can access Admin panel to manage users and roles' },
@@ -18,9 +19,10 @@ interface AdminPanelProps {
   khands: Khand[];
   mandals: Mandal[];
   villages: Village[];
+  contacts: Contact[];
 }
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ khands, mandals, villages }) => {
+export const AdminPanel: React.FC<AdminPanelProps> = ({ khands, mandals, villages, contacts }) => {
   const [activeTab, setActiveTab] = useState<'roles'|'users'>('users');
   
   const [roles, setRoles] = useState<AppRole[]>([]);
@@ -105,8 +107,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ khands, mandals, village
     }
   };
 
+  const linkUserToContact = async (userId: string, contactId: string | null) => {
+    try {
+      const targetUser = users.find(u => u.uid === userId);
+      if (!targetUser) return;
+      await setDoc(doc(db, 'users', userId), { ...targetUser, linkedContactId: contactId || null }, { merge: true });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, 'users');
+    }
+  };
+
   return (
-    <div className="p-4 sm:p-6 pb-24 max-w-7xl mx-auto font-sans">
+    <div className="px-1 sm:px-3 lg:px-4 py-4 sm:py-6 pb-24 max-w-7xl mx-auto font-sans">
       <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
@@ -194,6 +206,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ khands, mandals, village
                             <MapPin className="w-4 h-4 text-emerald-600" />
                             {user.areaPermissions?.khandIds?.length ? `${user.areaPermissions.khandIds.length} Restricted` : 'All Areas'}
                           </button>
+                        </div>
+                        <div className="flex flex-col gap-1 z-40 relative">
+                          <label className="text-xs text-gray-500 uppercase tracking-widest font-semibold flex items-center gap-1">
+                            Linked Contact
+                          </label>
+                          <SearchableContactSelect 
+                            contacts={contacts}
+                            value={user.linkedContactId || null}
+                            onChange={(id) => linkUserToContact(user.uid, id)}
+                          />
                         </div>
                       </div>
                     </div>

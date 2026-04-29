@@ -120,13 +120,14 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, L
 import { ExportModal } from './components/ExportModal';
 import { ReportsTab } from './components/ReportsTab';
 import { AdminPanel } from './components/AdminPanel';
+import { ChatView } from './components/ChatView';
 import { generateVolunteerTemplate, parseVolunteerExcel } from './excelUtils';
 import { auth, db, signInWithGoogle, signInWithUsername, createUsernameAccount, logout, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, setDoc, deleteDoc, updateDoc, collection, onSnapshot, getDocFromServer } from 'firebase/firestore';
-import { AppUser } from './types';
+import { AppUser, ChatRoom, ChatMessage } from './types';
 
-type Tab = 'home' | 'swayamsevak' | 'people' | 'trips' | 'lists' | 'groups' | 'work-status' | 'menu' | 'area-mgmt' | 'cat-mgmt' | 'list-cat-mgmt' | 'calendar' | 'event-cat-mgmt' | 'activities' | 'ideas' | 'events' | 'event-detail' | 'settings' | 'reports' | 'admin';
+type Tab = 'home' | 'swayamsevak' | 'people' | 'trips' | 'lists' | 'groups' | 'work-status' | 'menu' | 'area-mgmt' | 'cat-mgmt' | 'list-cat-mgmt' | 'calendar' | 'event-cat-mgmt' | 'activities' | 'ideas' | 'events' | 'event-detail' | 'settings' | 'reports' | 'admin' | 'messages';
 
 export interface EventModel {
   id: string;
@@ -326,6 +327,8 @@ const App: React.FC = () => {
   // Core State
   const [ideas, setIdeas] = useState<Idea[]>(() => loadData('ideas', []));
   const [events, setEvents] = useState<EventModel[]>(() => loadData('events', []));
+  const [chatRooms, setChatRooms] = useState<ChatRoom[]>(() => loadData('chatRooms', []));
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => loadData('chatMessages', []));
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [khands, setKhands] = useState<Khand[]>(() => loadData('khands', INITIAL_KHANDS));
   const [mandals, setMandals] = useState<Mandal[]>(() => loadData('mandals', INITIAL_MANDALS));
@@ -403,6 +406,9 @@ const App: React.FC = () => {
   useDataSync('meetings', meetings as any[], setMeetings as any, appUser);
   useDataSync('ideas', ideas as any[], setIdeas as any, appUser);
   useDataSync('events', events as any[], setEvents as any, appUser);
+  // Disabled global sync for chat
+  // useDataSync('chatRooms', chatRooms as any[], setChatRooms as any, appUser);
+  // useDataSync('chatMessages', chatMessages as any[], setChatMessages as any, appUser);
 
   useEffect(() => {
     async function testConnection() {
@@ -514,6 +520,18 @@ const App: React.FC = () => {
     setSelectedPeopleIds([]);
     setIsBulkUpdateModalOpen(false);
     setExportTarget(null);
+    
+    // Reset home and contact filters
+    setDashKhand('all');
+    setDashMandal('all');
+    setPeopleSearch('');
+    setPeopleStatusFilter('all');
+    setPeopleCategoryFilter('all');
+    setPeopleAgeCategoryFilter('all');
+    setPeopleShikshitFilter('all');
+    setPeopleShikshanLevelFilter([]);
+    setPeopleKhandFilter('all');
+    setPeopleMandalFilter('all');
   };
   const [isManagingMembers, setIsManagingMembers] = useState(false);
 
@@ -534,6 +552,10 @@ const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const volunteerExcelInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [activeTab]);
+
   // Persistence
   useEffect(() => {
     localStorage.setItem('khands', JSON.stringify(khands));
@@ -549,6 +571,8 @@ const App: React.FC = () => {
     localStorage.setItem('meetings', JSON.stringify(meetings));
     localStorage.setItem('ideas', JSON.stringify(ideas));
     localStorage.setItem('events', JSON.stringify(events));
+    localStorage.setItem('chatRooms', JSON.stringify(chatRooms));
+    localStorage.setItem('chatMessages', JSON.stringify(chatMessages));
     localStorage.setItem('userName', JSON.stringify(userName));
     localStorage.setItem('callRecords', JSON.stringify(callRecords));
     localStorage.setItem('whatsappMessage', JSON.stringify(whatsappMessage));
@@ -615,6 +639,42 @@ const App: React.FC = () => {
       }
     });
 
+    const mandalContacts: Record<string, number> = {};
+    contacts.forEach((c) => {
+      // Filter by khand if selected, but don't filter by dashMandal because we want to see all mandals in the khand
+      if (dashKhand !== 'all' && c.khandId !== dashKhand) return;
+      const mName = getMandalName(c.mandalId);
+      if (typeof mName === 'string') {
+        mandalContacts[mName] = (mandalContacts[mName] || 0) + 1;
+      }
+    });
+
+    mandals.forEach(m => {
+      if (dashKhand !== 'all' && m.khandId !== dashKhand) return;
+      if (mandalContacts[m.name] === undefined) {
+         mandalContacts[m.name] = 0;
+      }
+    });
+
+    const contactsByKhandAndMandal: Record<string, { total: number, mandals: Record<string, number> }> = {};
+    khands.forEach(k => {
+      contactsByKhandAndMandal[k.name] = { total: 0, mandals: {} };
+      mandals.filter(m => m.khandId === k.id).forEach(m => {
+        contactsByKhandAndMandal[k.name].mandals[m.name] = 0;
+      });
+    });
+
+    contacts.forEach((c) => {
+      const kName = getKhandName(c.khandId);
+      const mName = getMandalName(c.mandalId);
+      if (typeof kName === 'string' && contactsByKhandAndMandal[kName]) {
+        contactsByKhandAndMandal[kName].total++;
+        if (typeof mName === 'string' && contactsByKhandAndMandal[kName].mandals[mName] !== undefined) {
+           contactsByKhandAndMandal[kName].mandals[mName]++;
+        }
+      }
+    });
+
     // Trip Stats
     const statsByKhand: Record<string, { completed: number, planned: number, mandals: Record<string, { completed: number, planned: number }> }> = {};
     khands.forEach(k => {
@@ -651,7 +711,9 @@ const App: React.FC = () => {
       byCategory,
       byStatus,
       byAgeCategory,
-      statsByKhand
+      statsByKhand,
+      mandalContacts,
+      contactsByKhandAndMandal
     };
   }, [contacts, dashKhand, dashMandal, events, trips, khands, mandals]);
 
@@ -819,24 +881,55 @@ const App: React.FC = () => {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const data = JSON.parse(e.target?.result as string);
-        if (data.khands) setKhands(data.khands);
-        if (data.mandals) setMandals(data.mandals);
-        if (data.villages) setVillages(data.villages);
-        if (data.contacts) setContacts(data.contacts);
-        if (data.trips) setTrips(data.trips);
-        if (data.categories) setCategories(data.categories);
-        if (data.eventCategories) setEventCategories(data.eventCategories);
-        if (data.customLists) setCustomLists(data.customLists);
-        if (data.meetings) setMeetings(data.meetings);
-        if (data.ideas) setIdeas(data.ideas);
-        if (data.events) setEvents(data.events);
-        if (data.userName) setUserName(data.userName);
-        alert('डेटा सफलतापूर्वक रिस्टोर हो गया है!');
-      } catch (err) {
-        alert('डेटा रिस्टोर करने में त्रुटि हुई। कृपया सही फाइल चुनें।');
+        
+        alert('डेटा पढ़ा जा रहा है, और सर्वर के साथ सिंक हो रहा है। कृपया प्रतीक्षा करें...');
+
+        const processCollection = async (collName: string, items: any[]) => {
+          if (!items || !Array.isArray(items)) return;
+          const writePromises = [];
+          for (const item of items) {
+             if (item.id) {
+               writePromises.push(setDoc(doc(db, collName, item.id), cleanData(item), {merge: true}).catch(err => {
+                 console.error(`Failed to restore ${collName}/${item.id}`, err);
+               }));
+             }
+          }
+          await Promise.all(writePromises);
+        };
+
+        if (data.khands) await processCollection('khands', data.khands);
+        if (data.mandals) await processCollection('mandals', data.mandals);
+        if (data.villages) await processCollection('villages', data.villages);
+        if (data.contacts) await processCollection('contacts', data.contacts);
+        if (data.trips) await processCollection('trips', data.trips);
+        if (data.categories) await processCollection('categories', data.categories);
+        if (data.eventCategories) await processCollection('eventCategories', data.eventCategories);
+        if (data.customLists) await processCollection('lists', data.customLists);
+        if (data.meetings) await processCollection('meetings', data.meetings);
+        if (data.ideas) await processCollection('ideas', data.ideas);
+        if (data.events) await processCollection('events', data.events);
+
+        if (data.khands) { setKhands(data.khands); localStorage.setItem('khands', JSON.stringify(data.khands)); }
+        if (data.mandals) { setMandals(data.mandals); localStorage.setItem('mandals', JSON.stringify(data.mandals)); }
+        if (data.villages) { setVillages(data.villages); localStorage.setItem('villages', JSON.stringify(data.villages)); }
+        if (data.contacts) { setContacts(data.contacts); localStorage.setItem('contacts', JSON.stringify(data.contacts)); }
+        if (data.trips) { setTrips(data.trips); localStorage.setItem('trips', JSON.stringify(data.trips)); }
+        if (data.categories) { setCategories(data.categories); localStorage.setItem('categories', JSON.stringify(data.categories)); }
+        if (data.eventCategories) { setEventCategories(data.eventCategories); localStorage.setItem('eventCategories', JSON.stringify(data.eventCategories)); }
+        if (data.customLists) { setCustomLists(data.customLists); localStorage.setItem('customLists', JSON.stringify(data.customLists)); }
+        if (data.meetings) { setMeetings(data.meetings); localStorage.setItem('meetings', JSON.stringify(data.meetings)); }
+        if (data.ideas) { setIdeas(data.ideas); localStorage.setItem('ideas', JSON.stringify(data.ideas)); }
+        if (data.events) { setEvents(data.events); localStorage.setItem('events', JSON.stringify(data.events)); }
+        if (data.userName) { setUserName(data.userName); localStorage.setItem('userName', JSON.stringify(data.userName)); }
+        
+        alert('डेटा सफलतापूर्वक रिस्टोर और सिंक हो गया है!');
+        window.location.reload();
+      } catch (err: any) {
+        alert('डेटा रिस्टोर करने में त्रुटि हुई: ' + (err.message || String(err)));
+        console.error("Import Error:", err);
       }
     };
     reader.readAsText(file);
@@ -867,6 +960,10 @@ const App: React.FC = () => {
 
   // Rendering Tabs
   const renderHome = () => {
+    const linkedContact = appUser?.linkedContactId ? contacts?.find((c: any) => c.id === appUser.linkedContactId) : null;
+    const displayUserName = linkedContact ? linkedContact.name : (appUser ? appUser.displayName || appUser.email : userName);
+    const firstName = displayUserName?.split(' ')[0] || displayUserName;
+
     const upcomingMeetings = meetings
       .filter(m => new Date(m.date) >= new Date() || isToday(parseISO(m.date)))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
@@ -894,21 +991,21 @@ const App: React.FC = () => {
       sampark: homeFilteredVillages.filter(v => v.stage === VillageStage.SAMPARK).length,
     };
 
-    return (
-     <div className="p-4 pb-24 animate-in fade-in duration-500 lg:p-8">
-       <header className="sticky top-0 z-30 bg-slate-50/95 dark:bg-[#070b14]/95 backdrop-blur-xl -mt-4 -mx-4 px-4 py-3 border-b border-gray-200/50 dark:border-gray-800/50 shadow-sm flex justify-between items-center relative overflow-hidden mb-6">
+     return (
+     <div className="px-0 sm:px-1 lg:px-2 py-4 pb-24 animate-in fade-in duration-500 lg:p-8">
+       <header className="sticky top-0 z-30 bg-slate-50/95 dark:bg-[#070b14]/95 backdrop-blur-xl -mt-4 sm:-mt-6 lg:-mt-8 -mx-[10px] px-5 sm:-mx-[10px] sm:px-[26px] lg:-mx-[10px] lg:px-14 py-1.5 border-b border-gray-200/50 dark:border-gray-800/50 shadow-sm flex justify-between items-center overflow-hidden mb-8 sm:rounded-b-[2.5rem]">
          <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 dark:bg-orange-500/5 rounded-full blur-2xl -mr-10 -mt-10 transition-colors duration-500"></div>
          <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/10 dark:bg-blue-500/5 rounded-full blur-2xl -ml-10 -mb-10 transition-colors duration-500"></div>
-         <div className="relative flex items-center gap-3 flex-1 min-w-0 pr-4">
-            <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/50 shadow-sm flex items-center justify-center p-1.5 shrink-0 overflow-hidden transition-colors duration-500">
+         <div className="relative flex items-center gap-2 flex-1 min-w-0 pr-4">
+            <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/50 shadow-sm flex items-center justify-center p-1 shrink-0 overflow-hidden transition-colors duration-500">
                <img src={FLAG_IMAGE_URI} alt="Dhwaj" className="w-full h-full object-contain drop-shadow-sm" />
             </div>
-            <div className="flex-1 min-w-0 py-1">
-              <h1 className="text-[22px] font-extrabold text-blue-600 dark:text-blue-500 tracking-tight leading-normal break-words pt-1 transition-colors duration-500">संगठन शिल्पी</h1>
-              <p className="text-[10.5px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest truncate pb-1">नमस्ते, {userName}</p>
+            <div className="flex-1 min-w-0 py-0.5">
+              <h1 className="text-[17px] font-extrabold text-blue-600 dark:text-blue-500 tracking-tight leading-tight break-words pt-0.5 transition-colors duration-500">संगठन शिल्पी</h1>
+              <p className="text-[9px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest truncate pb-0.5">नमस्ते, {firstName} जी</p>
             </div>
          </div>
-         <button onClick={() => setDarkMode(!darkMode)} className="relative p-2.5 bg-white dark:bg-[#0a101f] border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm active:scale-95 transition-all shrink-0">
+         <button onClick={() => setDarkMode(!darkMode)} className="relative p-2 bg-white dark:bg-[#0a101f] border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm active:scale-95 transition-all shrink-0">
             {darkMode ?<Sun size={18} className="text-yellow-500" /> :<Moon size={18} className="text-blue-600" />}
          </button>
        </header>
@@ -1021,10 +1118,68 @@ const App: React.FC = () => {
         )}
 
        <div className="grid grid-cols-3 gap-3">
-         <StatCard index={0} label="कुल संपर्क" value={stats.total} color="bg-blue-50 dark:bg-blue-900/20 text-blue-800" onClick={() => { setPeopleStatusFilter('all'); setPeopleCategoryFilter('all'); setPeopleAgeCategoryFilter('all'); setPeopleShikshitFilter('all'); setPeopleShikshanLevelFilter([]); setActiveTab('people'); }} />
-         <StatCard index={1} label="सक्रिय" value={stats.active} color="bg-green-50 dark:bg-green-900/20 text-green-800" onClick={() => { setPeopleStatusFilter(Status.SAKRIYA); setPeopleCategoryFilter('all'); setPeopleAgeCategoryFilter('all'); setPeopleShikshitFilter('all'); setPeopleShikshanLevelFilter([]); setActiveTab('people'); }} />
-         <StatCard index={2} label="शिक्षित" value={stats.shikshitCount} color="bg-indigo-50 dark:bg-indigo-900/20 text-indigo-800" onClick={() => { setPeopleCategoryFilter('all'); setPeopleStatusFilter('all'); setPeopleAgeCategoryFilter('all'); setPeopleShikshitFilter('yes'); setPeopleShikshanLevelFilter([]); setActiveTab('people'); }} />
+         <StatCard index={0} label="कुल संपर्क" value={stats.total} color="bg-blue-50 dark:bg-blue-900/20 text-blue-800" onClick={() => { setPeopleKhandFilter(dashKhand); setPeopleMandalFilter(dashMandal); setPeopleStatusFilter('all'); setPeopleCategoryFilter('all'); setPeopleAgeCategoryFilter('all'); setPeopleShikshitFilter('all'); setPeopleShikshanLevelFilter([]); setActiveTab('people'); }} />
+         <StatCard index={1} label="सक्रिय" value={stats.active} color="bg-green-50 dark:bg-green-900/20 text-green-800" onClick={() => { setPeopleKhandFilter(dashKhand); setPeopleMandalFilter(dashMandal); setPeopleStatusFilter(Status.SAKRIYA); setPeopleCategoryFilter('all'); setPeopleAgeCategoryFilter('all'); setPeopleShikshitFilter('all'); setPeopleShikshanLevelFilter([]); setActiveTab('people'); }} />
+         <StatCard index={2} label="शिक्षित" value={stats.shikshitCount} color="bg-indigo-50 dark:bg-indigo-900/20 text-indigo-800" onClick={() => { setPeopleKhandFilter(dashKhand); setPeopleMandalFilter(dashMandal); setPeopleCategoryFilter('all'); setPeopleStatusFilter('all'); setPeopleAgeCategoryFilter('all'); setPeopleShikshitFilter('yes'); setPeopleShikshanLevelFilter([]); setActiveTab('people'); }} />
        </div>
+
+        {/* Mandal Contacts Stats Table */}
+        {Object.keys(stats.contactsByKhandAndMandal).length > 0 && (
+          <motion.section initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-20px' }} transition={{ duration: 0.4 }} className="space-y-2 pt-2">
+            <SectionHeader 
+              icon={Users} 
+              title="मंडल संपर्क विवरण"
+              variant="purple"
+            />
+            <div className="bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] dark:border-gray-700/50 p-2 rounded-xl space-y-2">
+              <div className="grid grid-cols-2 gap-1.5">
+                {Object.entries(stats.contactsByKhandAndMandal).map(([kName, data]) => {
+                  // Only show if the khand has data or if no specific khand is filtered
+                  if (dashKhand !== 'all' && getKhandName(dashKhand) !== kName) return null;
+                  
+                  return (
+                   <div key={kName} className="bg-purple-50/80 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-800/30 rounded-lg p-2">
+                     <div className="text-sm font-medium text-purple-800 dark:text-purple-200 border-b border-purple-200/50 dark:border-purple-800/50 pb-1 mb-1 flex justify-between items-center">
+                        <span className="truncate flex-1">{kName}</span>
+                        <div className="flex bg-white/50 dark:bg-black/20 rounded items-center min-w-max ml-1 shadow-sm">
+                          <span className="bg-purple-500 text-white px-1.5 py-0.5 rounded text-xs font-medium"><AnimatedNumber value={data.total} /></span>
+                        </div>
+                     </div>
+                     <div className="space-y-0.5">
+                        {Object.entries(data.mandals).map(([mName, count]) => (
+                         <div 
+                           key={mName} 
+                           onClick={() => {
+                              const mandal = mandals.find(x => x.name === mName);
+                              if (mandal) {
+                                setDashKhand(mandal.khandId);
+                                setDashMandal(mandal.id);
+                                setPeopleKhandFilter(mandal.khandId);
+                                setPeopleMandalFilter(mandal.id);
+                                setPeopleStatusFilter('all'); 
+                                setPeopleCategoryFilter('all'); 
+                                setPeopleAgeCategoryFilter('all'); 
+                                setPeopleShikshitFilter('all'); 
+                                setPeopleShikshanLevelFilter([]); 
+                                setActiveTab('people');
+                              }
+                           }}
+                           className="text-xs text-purple-700 dark:text-purple-300 flex justify-between items-center gap-0.5 cursor-pointer hover:bg-purple-100/50 dark:hover:bg-purple-900/40 p-1 -mx-1 rounded transition-colors active:scale-95"
+                         >
+                           <span className="truncate flex-1 font-medium">{mName}</span>
+                           <div className={`flex rounded whitespace-nowrap min-w-max flex-none items-center shadow-sm ${count > 0 ? 'bg-purple-200/30 dark:bg-purple-900/20' : 'bg-gray-100 dark:bg-gray-800/30'}`}>
+                             <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${count > 0 ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' : 'text-gray-400 dark:text-gray-600'}`}><AnimatedNumber value={count} /></span>
+                           </div>
+                         </div>
+                        ))}
+                     </div>
+                   </div>
+                  );
+                })}
+              </div>
+            </div>
+          </motion.section>
+        )}
 
        <motion.section initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-20px' }} transition={{ duration: 0.4 }} className="space-y-4">
          <SectionHeader icon={Layers} title="श्रेणी अनुसार" variant="purple" />
@@ -1032,7 +1187,7 @@ const App: React.FC = () => {
             {Object.entries(stats.byCategory).map(([cat, count]) => (
              <div 
                  key={cat} 
-                 onClick={() => { setPeopleCategoryFilter(cat); setPeopleStatusFilter('all'); setActiveTab('people'); }}
+                 onClick={() => { setPeopleKhandFilter(dashKhand); setPeopleMandalFilter(dashMandal); setPeopleCategoryFilter(cat); setPeopleStatusFilter('all'); setActiveTab('people'); }}
                  className="bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 p-2.5 rounded-md border dark:border-gray-700 flex justify-between items-center shadow-sm active:scale-95 transition-all text-xs sm:text-sm cursor-pointer"
               >
                 <span className="font-medium dark:text-gray-200 line-clamp-1">{cat}</span>
@@ -1049,7 +1204,7 @@ const App: React.FC = () => {
             {Object.entries(stats.byStatus).map(([status, count]) => (
              <div 
                  key={status} 
-                 onClick={() => { setPeopleStatusFilter(status); setPeopleCategoryFilter('all'); setPeopleAgeCategoryFilter('all'); setActiveTab('people'); }}
+                 onClick={() => { setPeopleKhandFilter(dashKhand); setPeopleMandalFilter(dashMandal); setPeopleStatusFilter(status); setPeopleCategoryFilter('all'); setPeopleAgeCategoryFilter('all'); setActiveTab('people'); }}
                  className="bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 p-2.5 rounded-md border dark:border-gray-700 flex justify-between items-center shadow-sm active:scale-95 transition-all text-xs sm:text-sm cursor-pointer"
               >
                 <span className="font-medium dark:text-gray-200 line-clamp-1">{status}</span>
@@ -1067,7 +1222,7 @@ const App: React.FC = () => {
               {Object.entries(stats.byAgeCategory).map(([cat, count]) => (
                <div 
                    key={cat} 
-                   onClick={() => { setPeopleAgeCategoryFilter(cat); setPeopleCategoryFilter('all'); setPeopleStatusFilter('all'); setActiveTab('people'); }}
+                   onClick={() => { setPeopleKhandFilter(dashKhand); setPeopleMandalFilter(dashMandal); setPeopleAgeCategoryFilter(cat); setPeopleCategoryFilter('all'); setPeopleStatusFilter('all'); setActiveTab('people'); }}
                    className="bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 p-2.5 rounded-md border dark:border-gray-700 flex justify-between items-center shadow-sm active:scale-95 transition-all text-xs sm:text-sm cursor-pointer"
                 >
                   <span className="font-medium dark:text-gray-200 line-clamp-1">{cat}</span>
@@ -1140,8 +1295,8 @@ const App: React.FC = () => {
     });
 
     return (
-     <div className="p-3 pb-24 space-y-3">
-       <div className="sticky top-0 z-30 pt-3 pb-3 -mt-3 bg-slate-50/95 dark:bg-[#070b14]/95 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 shadow-sm -mx-3 px-3 space-y-3">
+     <div className="px-0 py-3 pb-24 space-y-3">
+       <div className="sticky top-0 z-30 pt-3 pb-3 -mt-3 bg-slate-50/95 dark:bg-[#070b14]/95 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 shadow-sm -mx-0 px-0 space-y-3">
          <header className="flex justify-between items-center relative overflow-hidden bg-white/60 dark:bg-[#080d19]/60 backdrop-blur-2xl border border-white/50 dark:border-gray-800 p-2.5 rounded-2xl shadow-sm">
            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl flex-none z-0"></div>
            <div className="relative z-10 flex items-center gap-3">
@@ -1287,7 +1442,7 @@ const App: React.FC = () => {
     };
 
     return (
-      <div className="p-3 pb-24 space-y-3 animate-in slide-in-from-right duration-300">
+      <div className="px-0 py-3 pb-24 space-y-3 animate-in slide-in-from-right duration-300">
         <header className="flex justify-between items-center bg-white/60 dark:bg-[#080d19]/60 backdrop-blur-2xl border border-white/50 dark:border-gray-800 p-2 rounded-2xl shadow-sm sticky top-2 z-30">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-blue-600 text-white rounded-xl shadow-lg">
@@ -1631,7 +1786,7 @@ const App: React.FC = () => {
     });
     
     return (
-     <div className="p-3 pb-24 space-y-3 animate-in slide-in-from-right duration-300">
+     <div className="px-0 py-3 pb-24 space-y-3 animate-in slide-in-from-right duration-300">
        <header className="flex justify-between items-center bg-white/60 dark:bg-[#080d19]/60 backdrop-blur-2xl border border-white/50 dark:border-gray-800 p-2 rounded-2xl shadow-sm sticky top-2 z-30">
          <div className="flex items-center gap-2">
            <div className="p-2 bg-orange-600 text-white rounded-xl shadow-lg">
@@ -1837,7 +1992,7 @@ const App: React.FC = () => {
       };
 
       return (
-       <div className="p-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
+       <div className="px-0 sm:px-1 lg:px-2 py-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
          <header className="flex items-center gap-4">
            <button onClick={() => setSelectedMeetingId(null)} className="p-2 bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-sm border dark:border-gray-700 active:scale-95 transition-all"><ArrowLeft size={20} className="dark:text-white"/></button>
            <div className="flex-1">
@@ -1961,7 +2116,7 @@ const App: React.FC = () => {
       const listMeetings = meetings.filter(m => m.listId === list.id);
       
       return (
-       <div className="p-4 pb-24 space-y-8 animate-in slide-in-from-right duration-300">
+       <div className="px-0 sm:px-1 lg:px-2 py-4 pb-24 space-y-8 animate-in slide-in-from-right duration-300">
           <header className="flex items-center justify-between">
              <div className="flex items-center gap-4">
                <button onClick={() => setSelectedListId(null)} className="p-2 bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-sm border dark:border-gray-700"><ArrowLeft size={20} className="dark:text-white"/></button>
@@ -2090,8 +2245,8 @@ const App: React.FC = () => {
     const showUngrouped = listCategoryFilter === 'all';
 
     return (
-      <div className="p-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
-        <header className="flex justify-between items-center bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl p-4 -mx-4 -mt-4 sticky top-0 z-10 border-b border-white/20 dark:border-gray-800/50">
+      <div className="px-0 sm:px-1 lg:px-2 py-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
+        <header className="flex justify-between items-center bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl py-4 px-0 sm:px-1 lg:px-2 -mx-1 sm:-mx-3 lg:-mx-4 -mt-4 sticky top-0 z-10 border-b border-white/20 dark:border-gray-800/50">
           <div className="flex items-center gap-3">
              <button onClick={() => setActiveTab('home')} className="p-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg active:scale-90 transition-all">
                 <ArrowLeft size={18} />
@@ -2347,8 +2502,8 @@ const App: React.FC = () => {
       .filter(k => k.mandals.length > 0);
 
     return (
-     <div className="p-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
-       <header className="flex justify-between items-center sticky top-0 z-30 pt-4 pb-2 -mt-4 bg-slate-50/95 dark:bg-[#070b14]/95 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 shadow-sm -mx-4 px-4">
+     <div className="px-0 sm:px-1 lg:px-2 py-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
+       <header className="flex justify-between items-center sticky top-0 z-30 pt-4 pb-2 -mt-4 bg-slate-50/95 dark:bg-[#070b14]/95 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 shadow-sm -mx-0 px-0 sm:-mx-1 sm:px-1 lg:-mx-2 lg:px-2">
          <h1 className="text-2xl font-bold dark:text-white font-hindi">कार्यस्थिति</h1>
          <Building2 className="text-blue-600" />
        </header>
@@ -2599,8 +2754,8 @@ const App: React.FC = () => {
      </aside>
 
      <div className="flex-1 lg:pl-72 flex flex-col min-h-[100dvh] relative z-0">
-        <div className="max-w-md lg:max-w-7xl mx-auto w-full flex-1 flex flex-col relative z-10 px-4 sm:px-0">
-           <main className="flex-1 relative z-10 pb-[100px] lg:pb-12 lg:pt-8 w-full">
+        <div className="w-full lg:max-w-7xl mx-auto flex-1 flex flex-col relative z-10">
+           <main className="flex-1 relative z-10 pb-[100px] lg:pb-12 lg:pt-8 w-full px-[10px]">
         {activeTab === 'home' && renderHome()}
         {activeTab === 'swayamsevak' && renderSwayamsevak()}
         {activeTab === 'people' && renderPeople()}
@@ -2690,6 +2845,7 @@ const App: React.FC = () => {
             userName={userName} setUserName={setUserName} 
             appUser={appUser}
             setActiveTab={setActiveTab} 
+            contacts={contacts}
           />
         )}
         {activeTab === 'area-mgmt' && (
@@ -2734,9 +2890,18 @@ const App: React.FC = () => {
         {activeTab === 'cat-mgmt' &&<CatMgmt categories={categories} setCategories={setCategories} onBack={()=>setActiveTab('settings')} setConfirmation={setConfirmation} />}
         {activeTab === 'event-cat-mgmt' &&<CatMgmt title="कार्यक्रम श्रेणी प्रबंधन" categories={eventCategories} setCategories={setEventCategories} onBack={()=>setActiveTab('settings')} setConfirmation={setConfirmation} />}
         {activeTab === 'list-cat-mgmt' &&<CatMgmt title="सूची श्रेणी प्रबंधन" categories={listCategories} setCategories={setListCategories} onBack={()=>setActiveTab('settings')} setConfirmation={setConfirmation} />}
+        {activeTab === 'messages' && (
+          <div className="h-full overflow-hidden w-full relative">
+            <ChatView 
+              appUser={appUser} 
+              contacts={contacts} 
+              onBack={() => setActiveTab('menu')} 
+            />
+          </div>
+        )}
         {activeTab === 'admin' && (
           <div className="h-full overflow-y-auto w-full bg-slate-50 dark:bg-[#070b14]">
-            <AdminPanel khands={khands} mandals={mandals} villages={villages} />
+            <AdminPanel khands={khands} mandals={mandals} villages={villages} contacts={contacts} />
           </div>
         )}
         {selectedContactId && contacts.find(c => c.id === selectedContactId) && (
@@ -2781,7 +2946,7 @@ const App: React.FC = () => {
         className="hidden" 
       />
 
-     <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/80 dark:bg-[#080d19]/90 backdrop-blur-2xl border border-gray-200/50 dark:border-gray-800/50 flex justify-around items-center p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] z-[100] shadow-[0_-8px_30px_rgba(0,0,0,0.08)] overflow-hidden rounded-t-[2.5rem] lg:hidden transition-colors duration-500">
+     <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full bg-white/80 dark:bg-[#080d19]/90 backdrop-blur-2xl border border-gray-200/50 dark:border-gray-800/50 flex justify-around items-center p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] z-[100] shadow-[0_-8px_30px_rgba(0,0,0,0.08)] overflow-hidden lg:hidden transition-colors duration-500">
         {/* Abstract Dark Gradients */}
        <div className="absolute inset-0 pointer-events-none opacity-40 dark:opacity-60 overflow-hidden text-transparent">
          <div className="absolute top-0 left-1/4 w-1/2 h-full bg-blue-500/10 blur-[60px] animate-pulse transition-colors duration-500"></div>
@@ -3447,7 +3612,7 @@ const ContactProfile = ({ contact, villages, mandals, categories, onDelete, onEd
   const vName = villages.find((v: any) => v.id === contact.villageId)?.name || '';
   const mName = mandals.find((m: any) => m.id === contact.mandalId)?.name || '';
   return (
-   <div className="p-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
+   <div className="px-0 sm:px-1 lg:px-2 py-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
      <header className="flex justify-between items-center">
        <button onClick={onBack} className="p-3 bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-md shadow-sm border dark:border-gray-700 active:scale-95 transition-all"><ArrowLeft size={20} className="dark:text-white"/></button>
        <div className="flex gap-2">
@@ -3604,7 +3769,7 @@ const VillageDetail = ({ village, contacts, ideas, onBack, onContactClick, onUpd
   const [newName, setNewName] = useState(village.name);
 
   return (
-   <div className="p-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
+   <div className="px-0 sm:px-1 lg:px-2 py-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
       <header className="flex items-center gap-4">
          <button onClick={onBack} className="p-3 bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-md shadow-sm border dark:border-gray-700 active:scale-95 transition-all"><ArrowLeft size={20} className="dark:text-white"/></button>
          <div className="flex-1 flex justify-between items-center">
@@ -4697,7 +4862,7 @@ const CatMgmt = ({ categories, setCategories, onBack, setConfirmation, title = "
    const [editId, setEditId] = useState<string | null>(null);
 
    return (
-     <div className="p-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
+     <div className="px-0 sm:px-1 lg:px-2 py-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
         <header className="flex items-center gap-4">
            <button onClick={onBack} className="p-2 bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-sm border dark:border-gray-700 active:scale-90"><ArrowLeft size={20} className="dark:text-white"/></button>
            <h2 className="text-xl font-bold dark:text-white">{title}</h2>
@@ -4820,7 +4985,7 @@ const SettingsTab = ({
   setActiveTab, 
   exportData, importData, generateVolunteerTemplate, volunteerExcelInputRef, handleImportExcel, resetAllData, clearAllKaryas 
 }: any) => (
- <div className="p-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
+ <div className="px-0 sm:px-1 lg:px-2 py-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
     <header className="flex items-center gap-4">
        <button onClick={() => setActiveTab('menu')} className="p-2 bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-sm border dark:border-gray-700 active:scale-90">
           <ArrowLeft size={20} className="dark:text-white"/>
@@ -4870,7 +5035,7 @@ const SettingsTab = ({
 
           <div className="p-3 space-y-3 border-t dark:border-gray-700">
              <div className="flex items-center gap-3 text-emerald-600"><Type size={18}/><span className="font-medium dark:text-gray-200">फ़ॉन्ट</span></div>
-             <div className="flex overflow-x-auto pb-2 -mx-3 px-3 gap-2 snap-x scrollbar-hide text-xs">
+             <div className="flex overflow-x-auto pb-2 -mx-0 px-0 gap-2 snap-x scrollbar-hide text-xs">
                 <button onClick={()=>setAppFont('baloo')} className={`snap-start shrink-0 px-3 py-1.5 rounded-sm border transition-all ${appFont === 'baloo' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 font-medium' : 'border-gray-200 dark:border-gray-700 dark:text-gray-200 text-gray-700'}`} style={{fontFamily: '"Baloo 2", sans-serif'}}>Baloo</button>
                 <button onClick={()=>setAppFont('tiro')} className={`snap-start shrink-0 px-3 py-1.5 rounded-sm border transition-all ${appFont === 'tiro' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 font-medium' : 'border-gray-200 dark:border-gray-700 dark:text-gray-200 text-gray-700'}`} style={{fontFamily: '"Tiro Devanagari Hindi", serif'}}>Tiro Hindi</button>
                 <button onClick={()=>setAppFont('mukta')} className={`snap-start shrink-0 px-3 py-1.5 rounded-sm border transition-all ${appFont === 'mukta' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 font-medium' : 'border-gray-200 dark:border-gray-700 dark:text-gray-200 text-gray-700'}`} style={{fontFamily: 'Mukta, sans-serif'}}>Mukta</button>
@@ -5021,11 +5186,16 @@ const GridMenuItem = ({ icon: Icon, label, color, onClick, delay = 0, variant = 
   );
 };
 
-const MenuTab = ({ userName, setUserName, appUser, setActiveTab }: any) => {
+const MenuTab = ({ userName, setUserName, appUser, setActiveTab, contacts = [] }: any) => {
+  const linkedContact = appUser?.linkedContactId ? contacts?.find((c: any) => c.id === appUser.linkedContactId) : null;
+  const displayRole = linkedContact?.volunteerProfile?.currentResponsibility 
+    ? linkedContact.volunteerProfile.currentResponsibility 
+    : (appUser ? (appUser.roleId ? 'Swayamsevak' : 'No Role Assigned') : 'Guest');
+
   return (
     <div className="flex flex-col h-full bg-[#f8fafc] dark:bg-[#020617] overflow-hidden">
       {/* Compact Static Header */}
-      <div className="p-4 bg-white dark:bg-[#0f172a] border-b border-gray-200 dark:border-gray-800 shadow-sm shrink-0">
+      <div className="bg-white dark:bg-[#0f172a] border-b border-gray-200 dark:border-gray-800 shadow-sm shrink-0 sticky top-0 z-30 pt-4 pb-4 px-[18px] sm:px-[26px] -mx-[10px]">
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -5038,13 +5208,13 @@ const MenuTab = ({ userName, setUserName, appUser, setActiveTab }: any) => {
             <div className="flex-1 min-w-0">
               <input 
                 className="bg-transparent font-black text-gray-900 dark:text-gray-100 text-base w-full outline-none placeholder:text-gray-400 font-hindi truncate" 
-                value={appUser ? appUser.displayName || appUser.email : userName} 
+                value={linkedContact ? linkedContact.name : (appUser ? appUser.displayName || appUser.email : userName)} 
                 onChange={e => setUserName(e.target.value)}
                 readOnly={!!appUser}
                 placeholder="नमो नमः..."
               />
-              <p className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] leading-none">
-                {appUser ? (appUser.roleId ? 'Swayamsevak' : 'No Role Assigned') : 'Guest'}
+              <p className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] leading-none truncate pr-2">
+                {displayRole}
               </p>
             </div>
           </div>
@@ -5062,8 +5232,8 @@ const MenuTab = ({ userName, setUserName, appUser, setActiveTab }: any) => {
         </motion.div>
       </div>
 
-      {/* Grid Optimized for Zero Scroll */}
-      <div className="p-4 flex-1 overflow-hidden flex flex-col">
+      {/* Grid Optimized for mobile scrolling */}
+      <div className="p-4 flex-1 overflow-y-auto flex flex-col no-scrollbar">
         <div className="grid grid-cols-3 gap-3">
           <GridMenuItem 
             delay={0}
@@ -5108,6 +5278,14 @@ const MenuTab = ({ userName, setUserName, appUser, setActiveTab }: any) => {
             onClick={() => setActiveTab('ideas')} 
           />
           
+          <GridMenuItem 
+            variant="wide"
+            delay={5.5}
+            icon={MessageSquare} 
+            label="संदेश (Messages)" 
+            color="bg-teal-500 text-white"
+            onClick={() => setActiveTab('messages')} 
+          />
           <GridMenuItem 
             variant="wide"
             delay={6}
@@ -5477,8 +5655,8 @@ const ActivitiesTab = ({
   };
 
   return (
-   <div className="p-3 pb-24 space-y-4 animate-in fade-in duration-500">
-     <div className="sticky top-0 z-30 pt-3 pb-3 -mt-3 bg-slate-50/95 dark:bg-[#070b14]/95 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 shadow-sm -mx-3 px-3 space-y-2">
+   <div className="px-0 py-3 pb-24 space-y-4 animate-in fade-in duration-500">
+     <div className="sticky top-0 z-30 pt-3 pb-3 -mt-3 bg-slate-50/95 dark:bg-[#070b14]/95 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 shadow-sm -mx-0 px-0 space-y-2">
        <header className="flex flex-col gap-3 relative overflow-hidden bg-white/60 dark:bg-[#080d19]/60 backdrop-blur-2xl border border-white/50 dark:border-gray-800 p-3 rounded-2xl shadow-sm">
          <div className="absolute -top-4 -right-4 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl"></div>
          <div className="flex justify-between items-center relative gap-2">
@@ -5742,7 +5920,7 @@ const CalendarTab = ({
   const weekDays = ['रवि', 'सोम', 'मंगल', 'बुध', 'गुरु', 'शुक्र', 'शनि'];
 
   return (
-   <div className="p-3 pb-24 space-y-3 animate-in fade-in duration-500">
+   <div className="px-0 py-3 pb-24 space-y-3 animate-in fade-in duration-500">
      <header className="bg-white/60 dark:bg-[#080d19]/60 backdrop-blur-2xl border border-white/50 dark:border-gray-800 p-3 rounded-2xl shadow-sm space-y-3 sticky top-2 z-30 relative overflow-hidden">
        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl"></div>
        <div className="flex justify-between items-center relative z-10">
@@ -6124,8 +6302,8 @@ const IdeasTab = ({ ideas, onUpdate, onDelete, onAdd, contacts, villages, mandal
   }, [ideas, filter]);
 
   return (
-   <div className="p-4 pb-24 space-y-6 animate-in fade-in duration-500">
-     <header className="flex justify-between items-center sticky top-0 z-30 pt-4 pb-3 -mt-4 bg-slate-50/95 dark:bg-[#070b14]/95 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 shadow-sm -mx-4 px-4">
+   <div className="px-0 sm:px-1 lg:px-2 py-4 pb-24 space-y-6 animate-in fade-in duration-500">
+     <header className="flex justify-between items-center sticky top-0 z-30 pt-4 pb-3 -mt-4 bg-slate-50/95 dark:bg-[#070b14]/95 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 shadow-sm -mx-0 px-0 sm:-mx-1 sm:px-1 lg:-mx-2 lg:px-2">
        <div>
          <h1 className="text-2xl font-bold dark:text-white">भविष्य योजना</h1>
        </div>

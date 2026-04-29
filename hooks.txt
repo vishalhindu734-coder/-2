@@ -1,0 +1,104 @@
+242:  const isInternalUpdate = useRef(false);
+244:  const isFirstLoad = useRef(true);
+246:  useEffect(() => {
+283:  useEffect(() => {
+317:  const [authLoading, setAuthLoading] = useState(true);
+320:  const [loginUsername, setLoginUsername] = useState('');
+321:  const [loginPassword, setLoginPassword] = useState('');
+322:  const [keepSignedIn, setKeepSignedIn] = useState(true);
+323:  const [loginError, setLoginError] = useState('');
+324:  const [isLoggingIn, setIsLoggingIn] = useState(false);
+338:  const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
+359:  const [darkMode, setDarkMode] = useState(() => loadData('darkMode', false));
+360:  const [appTheme, setAppTheme] = useState(() => loadData('appTheme', 'default'));
+361:  const [appFont, setAppFont] = useState(() => loadData('appFont', 'baloo'));
+362:  const [appFontSize, setAppFontSize] = useState(() => loadData('appFontSize', 16));
+363:  const [userName, setUserName] = useState(() => loadData('userName', 'क्षेत्र स्वयंसेवक'));
+365:  const [whatsappMessage, setWhatsappMessage] = useState(() => loadData('whatsappMessage', 'नमस्ते'));
+376:  const [peopleSearch, setPeopleSearch] = useState('');
+391:    const [isBulkUpdateModalOpen, setIsBulkUpdateModalOpen] = useState(false);
+392:  const [isSelectionMode, setIsSelectionMode] = useState(false);
+407:  useEffect(() => {
+420:  useEffect(() => {
+459:  const filteredPeople = useMemo(() => {
+489:  const groupedPeopleData = useMemo(() => {
+518:  const [isManagingMembers, setIsManagingMembers] = useState(false);
+524:  const [isAddingContact, setIsAddingContact] = useState(false);
+525:  const [isAddingTrip, setIsAddingTrip] = useState(false);
+526:  const [isAddingList, setIsAddingList] = useState(false);
+528:  const [isAddingMeeting, setIsAddingMeeting] = useState(false);
+529:  const [isAddingIdea, setIsAddingIdea] = useState(false);
+538:  useEffect(() => {
+590:  const stats = useMemo(() => {
+699:  const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
+3267:  const [displayValue, setDisplayValue] = React.useState(0);
+3269:  React.useEffect(() => {
+3388:  useEffect(() => {
+3604:  const [isEditingSpecialty, setIsEditingSpecialty] = useState(false);
+3605:  const [isEditingName, setIsEditingName] = useState(false);
+3606:  const [specialty, setSpecialty] = useState(village.specialty || '');
+3607:  const [newName, setNewName] = useState(village.name);
+3843:  const [isSubmitting, setIsSubmitting] = useState(false);
+3844:  const [name, setName] = useState(initialData?.name || '');
+3845:  const [phone, setPhone] = useState(initialData?.phone || '');
+3846:  const [khandId, setKhandId] = useState(initialData?.khandId || '');
+3847:  const [mandalId, setMandalId] = useState(initialData?.mandalId || '');
+3848:  const [villageId, setVillageId] = useState(initialData?.villageId || '');
+3849:  const [cat, setCat] = useState(initialData?.category || categories[0]?.name || '');
+3850:  const [status, setStatus] = useState(initialData?.status || Status.SAKRIYA);
+3852:  const [showMore, setShowMore] = useState(false);
+4079:  const [isSubmitting, setIsSubmitting] = useState(false);
+4080:  const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
+4081:  const [khandId, setKhandId] = useState(initialData?.khandId || '');
+4082:  const [mandalId, setMandalId] = useState(initialData?.mandalId || '');
+4085:  const [notes, setNotes] = useState(initialData?.notes || '');
+4087:  const relevantIdeas = useMemo(() => {
+4214:  const dragValuesRef = useRef({
+4222:  const scheduleRef = useRef(schedule);
+4223:  const onUpdateRef = useRef(onUpdate);
+4225:  useEffect(() => {
+4230:  useEffect(() => {
+4239:  const relevantIdeas = useMemo(() => {
+4258:  const unscheduledContacts = useMemo(() => {
+4322:  useEffect(() => {
+4697:   const [newCat, setNewCat] = useState('');
+4698:   const [newIcon, setNewIcon] = useState('User');
+4699:   const [isPickingIcon, setIsPickingIcon] = useState(false);
+5150:   const [val, setVal] = useState('');
+5171:  const [title, setTitle] = useState('');
+5172:  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+5173:  const [location, setLocation] = useState('');
+5174:  const [notes, setNotes] = useState('');
+5175:  const [category, setCategory] = useState(eventCategories[0]?.name || '');
+5177:  const relevantIdeas = useMemo(() => {
+5260:  const [notes, setNotes] = useState(initialNotes || '');
+5261:  const [date, setDate] = useState(initialDate ? initialDate.split('T')[0] : new Date().toISOString().split('T')[0]);
+5287:  const [search, setSearch] = useState('');
+5288:  const [khandFilter, setKhandFilter] = useState('all');
+5289:  const [mandalFilter, setMandalFilter] = useState('all');
+5290:  const [villageFilter, setVillageFilter] = useState('all');
+5386:  const [editVal, setEditVal] = useState('');
+5388:  const allActivities = useMemo(() => {
+5434:  const summary = useMemo(() => {
+5646:  const [currentMonth, setCurrentMonth] = useState(new Date());
+5647:  const [selectedDate, setSelectedDate] = useState(new Date());
+5648:  const [karyasExpanded, setKaryasExpanded] = useState(false);
+6111:  const groupedIdeas = useMemo(() => {
+6211:  const [name, setName] = useState(initialData?.name || '');
+6212:  const [categoryId, setCategoryId] = useState(initialData?.categoryId || '');
+6213:  const [icon, setIcon] = useState(initialData?.icon || '');
+6214:  const [showIconPicker, setShowIconPicker] = useState(false);
+6323:  const [content, setContent] = useState('');
+6325:  const [linkId, setLinkId] = useState('');
+6326:  const [khandId, setKhandId] = useState('');
+6327:  const [mandalId, setMandalId] = useState('');
+6479:  const [useStatus, setUseStatus] = useState(false);
+6480:  const [status, setStatus] = useState(Status.SAKRIYA);
+6482:  const [useCategory, setUseCategory] = useState(false);
+6483:  const [category, setCategory] = useState(categories[0]?.name || '');
+6485:  const [useResponsibility, setUseResponsibility] = useState(false);
+6486:  const [responsibility, setResponsibility] = useState('');
+6488:  const [useLocation, setUseLocation] = useState(false);
+6489:  const [khandId, setKhandId] = useState('');
+6490:  const [mandalId, setMandalId] = useState('');
+6491:  const [villageId, setVillageId] = useState('');

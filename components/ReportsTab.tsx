@@ -133,7 +133,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
   };
 
   return (
-    <div className="p-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
+    <div className="px-1 sm:px-3 lg:px-4 py-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
       <header className="flex items-center gap-4">
         <button onClick={onBack} className="p-2 bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-sm active:scale-90 transition-all">
            <ArrowLeft size={20} className="dark:text-white"/>

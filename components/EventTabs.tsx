@@ -59,7 +59,7 @@ export const EventsTab = ({ events, setEvents, meetings, onSelectEvent, onBack }
   const pendingTodos = events.reduce((sum: number, evt: any) => sum + (evt.phases?.reduce((s: number, p: any) => s + (p.todos?.filter((t: any) => !t.isCompleted).length || 0), 0) || 0), 0);
 
   return (
-    <div className="p-4 pb-24 space-y-6 animate-in fade-in duration-300">
+    <div className="px-1 sm:px-3 lg:px-4 py-4 pb-24 space-y-6 animate-in fade-in duration-300">
       <header className="flex justify-between items-center bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-900/30">
         <div className="flex items-center gap-3">
            <button onClick={onBack} className="p-2 bg-white dark:bg-gray-800 rounded-sm border dark:border-gray-700 shadow-sm"><ArrowLeft size={16} className="dark:text-white"/></button>
@@ -157,7 +157,7 @@ export const EventDetailTab = ({ eventId, events, setEvents, contacts, onBack }:
   const currentBalance = totalIncome - totalExpense;
 
   return (
-    <div className="p-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
+    <div className="px-1 sm:px-3 lg:px-4 py-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
       {/* Shared Voluteers Datalist */}
       <datalist id="workers">
          {contacts?.map((c: any) => <option key={c.id} value={c.name} />)}

@@ -185,6 +185,25 @@ export interface Meeting {
   presentPeopleIds: string[]; // Actual attendance
 }
 
+export interface ChatRoom {
+  id: string;
+  type: 'direct' | 'group';
+  name?: string;
+  participantIds: string[];
+  lastMessage?: string;
+  lastMessageTime?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  roomId: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  timestamp: string;
+  participantIds?: string[];
+}
+
 // ---- Role Based Access Control Models ---- //
 
 export type Permission = 
@@ -212,4 +231,5 @@ export interface AppUser {
     mandalIds: string[];
     villageIds: string[];
   };
+  linkedContactId?: string;
 }
