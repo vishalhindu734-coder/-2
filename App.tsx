@@ -124,7 +124,7 @@ import { generateVolunteerTemplate, parseVolunteerExcel } from './excelUtils';
 import { auth, db, signInWithGoogle, logout, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { AppUser, AppRole, Permission } from './types';
+import { AppUser } from './types';
 
 type Tab = 'home' | 'swayamsevak' | 'people' | 'trips' | 'lists' | 'groups' | 'work-status' | 'menu' | 'area-mgmt' | 'cat-mgmt' | 'list-cat-mgmt' | 'calendar' | 'event-cat-mgmt' | 'activities' | 'ideas' | 'events' | 'event-detail' | 'settings' | 'reports' | 'admin';
 
@@ -222,7 +222,6 @@ const App: React.FC = () => {
   // Auth State
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
-  const [userRole, setUserRole] = useState<AppRole | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   // Core State
@@ -302,15 +301,7 @@ const App: React.FC = () => {
         try {
           const userSnap = await getDoc(userRef);
           if (userSnap.exists()) {
-            const fetchedUser = { uid: userSnap.id, ...userSnap.data() } as AppUser;
-            setAppUser(fetchedUser);
-            if (fetchedUser.roleId) {
-              const roleSnap = await getDoc(doc(db, 'roles', fetchedUser.roleId));
-              if (roleSnap.exists()) setUserRole({ id: roleSnap.id, ...roleSnap.data() } as AppRole);
-              else setUserRole(null);
-            } else {
-              setUserRole(null);
-            }
+            setAppUser({ uid: userSnap.id, ...userSnap.data() } as AppUser);
           } else {
             const newUser: AppUser = {
               uid: user.uid,
@@ -321,7 +312,6 @@ const App: React.FC = () => {
             try {
               await setDoc(userRef, newUser);
               setAppUser(newUser);
-              setUserRole(null);
             } catch (e) {
               handleFirestoreError(e, OperationType.CREATE, `users/${user.uid}`);
             }
@@ -331,7 +321,6 @@ const App: React.FC = () => {
         }
       } else {
         setAppUser(null);
-        setUserRole(null);
       }
       setAuthLoading(false);
     });
@@ -342,49 +331,8 @@ const App: React.FC = () => {
     setSelectedPeopleIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
-  // --- Role & Area Based Filtering ---
-  const allowedKhandIds = appUser?.areaPermissions?.khandIds || [];
-  const restrictAreas = allowedKhandIds.length > 0;
-
-  const allowedKhands = useMemo(() => 
-    restrictAreas ? khands.filter(k => allowedKhandIds.includes(k.id)) : khands
-  , [khands, restrictAreas, allowedKhandIds]);
-
-  const allowedMandals = useMemo(() => 
-    restrictAreas ? mandals.filter(m => allowedKhandIds.includes(m.khandId)) : mandals
-  , [mandals, restrictAreas, allowedKhandIds]);
-
-  const allowedVillages = useMemo(() => {
-    if (!restrictAreas) return villages;
-    const mIds = allowedMandals.map(m => m.id);
-    return villages.filter(v => mIds.includes(v.mandalId));
-  }, [villages, restrictAreas, allowedMandals]);
-
-  const allowedContacts = useMemo(() => {
-    if (!restrictAreas) return contacts;
-    return contacts.filter(c => allowedKhandIds.includes(c.khandId));
-  }, [contacts, restrictAreas, allowedKhandIds]);
-
-  const allowedTrips = useMemo(() => {
-    if (!restrictAreas) return trips;
-    const mIds = allowedMandals.map(m => m.id);
-    return trips.filter(t => mIds.includes(t.mandalId));
-  }, [trips, restrictAreas, allowedMandals]);
-
-  const allowedIdeas = useMemo(() => {
-    if (!restrictAreas) return ideas;
-    return ideas.filter(i => {
-      // Find where idea comes from
-      if (i.khandId && allowedKhandIds.includes(i.khandId)) return true;
-      if (i.mandalId && allowedMandals.some(m => m.id === i.mandalId)) return true;
-      if (i.villageId && allowedVillages.some(v => v.id === i.villageId)) return true;
-      if (i.contactId && allowedContacts.some(c => c.id === i.contactId)) return true;
-      return false; // Not in allowed area
-    });
-  }, [ideas, restrictAreas, allowedKhandIds, allowedMandals, allowedVillages, allowedContacts]);
-
   const filteredPeople = useMemo(() => {
-    return allowedContacts.filter(c => {
+    return contacts.filter(c => {
       const matchSearch = c.name.toLowerCase().includes(peopleSearch.toLowerCase()) || (c.phone && c.phone.includes(peopleSearch));
       const matchStatus = peopleStatusFilter === 'all' || c.status === peopleStatusFilter;
       const matchCategory = peopleCategoryFilter === 'all' || c.category === peopleCategoryFilter;
@@ -1050,14 +998,14 @@ const App: React.FC = () => {
 
   const renderSwayamsevak = () => {
     // Filter by search and area first
-    const filtered = allowedContacts.filter(c => {
+    const filtered = contacts.filter(c => {
       const matchSearch = c.name.toLowerCase().includes(peopleSearch.toLowerCase()) || c.phone.includes(peopleSearch);
       const matchArea = (dashKhand === 'all' || c.khandId === dashKhand) && (dashMandal === 'all' || c.mandalId === dashMandal);
       return matchSearch && matchArea;
     });
 
     // Grouping logic: Mandal -> Village -> Contacts
-    const grouped: Record<string, Record<string, typeof allowedContacts>> = {};
+    const grouped: Record<string, Record<string, typeof contacts>> = {};
     filtered.forEach(c => {
       const mandalName = getMandalName(c.mandalId);
       const villageName = getVillageName(c.villageId);
@@ -1209,7 +1157,7 @@ const App: React.FC = () => {
 
   const renderPeople = () => {
     const handleSelectAll = (isFiltered: boolean) => {
-       const ids = isFiltered ? filteredPeople.map(c => c.id) : allowedContacts.map(c => c.id);
+       const ids = isFiltered ? filteredPeople.map(c => c.id) : contacts.map(c => c.id);
        setSelectedPeopleIds(ids);
     };
 
@@ -1513,10 +1461,10 @@ const App: React.FC = () => {
     if (viewingTrip) {
       return (
        <TripDetailModal
-           trip={allowedTrips.find(t => t.id === viewingTrip.id) || viewingTrip}
-           khands={allowedKhands} mandals={allowedMandals} villages={allowedVillages} contacts={allowedContacts} ideas={allowedIdeas}
+           trip={trips.find(t => t.id === viewingTrip.id) || viewingTrip}
+           khands={khands} mandals={mandals} villages={villages} contacts={contacts} ideas={ideas}
            onBack={() => setViewingTrip(null)}
-           onEdit={() => { setEditingTrip(allowedTrips.find(t => t.id === viewingTrip.id) || viewingTrip); setViewingTrip(null); }}
+           onEdit={() => { setEditingTrip(trips.find(t => t.id === viewingTrip.id) || viewingTrip); setViewingTrip(null); }}
            onUpdate={(updates: Partial<TripPlan>) => handleUpdateTrip(viewingTrip.id, updates)}
            whatsappMessage={whatsappMessage}
            onLogVisit={(contactId: string) => setIsLoggingVisit(contactId)}
@@ -1525,7 +1473,7 @@ const App: React.FC = () => {
     }
 
     const now = new Date();
-    const sortedTrips = [...allowedTrips].filter(trip => {
+    const sortedTrips = [...trips].filter(trip => {
       const pDate = parseISO(trip.date);
       if (tripTimeFilter === 'today') return isSameDay(pDate, now);
       if (tripTimeFilter === 'yesterday') return isSameDay(pDate, subDays(now, 1));
@@ -2225,8 +2173,8 @@ const App: React.FC = () => {
       return (
        <VillageDetail 
           village={village} 
-          contacts={allowedContacts}
-          ideas={allowedIdeas}
+          contacts={contacts}
+          ideas={ideas}
           onBack={() => setSelectedVillageId(null)}
           onContactClick={(id: string) => { setSelectedContactId(id); }}
           onUpdateVillage={(updates: Partial<Village>) => handleUpdateVillage(village.id, updates)}
@@ -2413,29 +2361,29 @@ const App: React.FC = () => {
             eventId={selectedEventId} 
             events={events} 
             setEvents={setEvents} 
-            contacts={allowedContacts}
+            contacts={contacts}
             onBack={() => { setSelectedEventId(null); setActiveTab('events'); }} 
           />
         )}
         {activeTab === 'ideas' && (
          <IdeasTab 
-            ideas={allowedIdeas}
+            ideas={ideas}
             onUpdate={handleUpdateIdea}
             onDelete={handleDeleteIdea}
             onAdd={() => setIsAddingIdea(true)}
-            contacts={allowedContacts}
-            villages={allowedVillages}
-            mandals={allowedMandals}
+            contacts={contacts}
+            villages={villages}
+            mandals={mandals}
           />
         )}
         {activeTab === 'activities' && (
          <ActivitiesTab 
-            trips={allowedTrips} 
-            contacts={allowedContacts} 
+            trips={trips} 
+            contacts={contacts} 
             meetings={meetings}
-            khands={allowedKhands}
-            mandals={allowedMandals}
-            villages={allowedVillages}
+            khands={khands}
+            mandals={mandals}
+            villages={villages}
             onContactClick={(id: string) => { setSelectedContactId(id); }}
             onTripClick={(trip: TripPlan) => { setViewingTrip(trip); setActiveTab('trips'); }}
             onMeetingClick={(meeting: Meeting) => { setSelectedListId(meeting.listId); setSelectedMeetingId(meeting.id); setActiveTab('lists'); }}
@@ -2455,12 +2403,12 @@ const App: React.FC = () => {
         )}
         {activeTab === 'calendar' && (
          <CalendarTab 
-            trips={allowedTrips} 
-            contacts={allowedContacts} 
+            trips={trips} 
+            contacts={contacts} 
             meetings={meetings}
-            khands={allowedKhands} 
-            mandals={allowedMandals}
-            villages={allowedVillages}
+            khands={khands} 
+            mandals={mandals}
+            villages={villages}
             eventCategories={eventCategories}
             dashKhand={dashKhand}
             dashMandal={dashMandal}
@@ -2481,7 +2429,6 @@ const App: React.FC = () => {
          <MenuTab 
             userName={userName} setUserName={setUserName} 
             appUser={appUser}
-            userRole={userRole}
             setActiveTab={setActiveTab} 
           />
         )}
@@ -2497,12 +2444,12 @@ const App: React.FC = () => {
         )}
         {activeTab === 'reports' && (
          <ReportsTab
-            contacts={allowedContacts}
-            trips={allowedTrips}
-            events={events} // Assuming events don't have area filtering yet, or are handled inside
-            villages={allowedVillages}
-            khands={allowedKhands}
-            mandals={allowedMandals}
+            contacts={contacts}
+            trips={trips}
+            events={events}
+            villages={villages}
+            khands={khands}
+            mandals={mandals}
             onBack={() => setActiveTab('menu')}
             setExportTarget={setExportTarget}
           />
@@ -2596,7 +2543,7 @@ const App: React.FC = () => {
      <ExportModal isOpen={!!exportTarget} onClose={() => setExportTarget(null)} data={exportTarget?.data || []} villages={villages} mandals={mandals} title={exportTarget?.title || 'export'} isGeneric={exportTarget?.isGeneric || false} />
       {(isAddingContact || editingContact) && (
        <ContactFormModal 
-          khands={allowedKhands} mandals={allowedMandals} villages={allowedVillages} categories={categories}
+          khands={khands} mandals={mandals} villages={villages} categories={categories}
           initialData={editingContact}
           onClose={() => { setIsAddingContact(false); setEditingContact(null); }} 
           onSubmit={(data: any) => (editingContact && editingContact.id) ? handleUpdateContact(editingContact.id, data) : handleAddContact(data)} 
@@ -2604,9 +2551,9 @@ const App: React.FC = () => {
       )}
       {(isAddingTrip || editingTrip) && (
        <TripFormModal 
-          khands={allowedKhands} mandals={allowedMandals} villages={allowedVillages} contacts={allowedContacts}
+          khands={khands} mandals={mandals} villages={villages} contacts={contacts}
           initialData={editingTrip}
-          ideas={allowedIdeas}
+          ideas={ideas}
           onClose={() => { setIsAddingTrip(false); setEditingTrip(null); }} 
           onSubmit={(data: any) => editingTrip ? handleUpdateTrip(editingTrip.id, data) : handleAddTrip(data)} 
         />
@@ -2661,10 +2608,10 @@ const App: React.FC = () => {
       )}
       {isAddingIdea && (
        <IdeaFormModal 
-          contacts={allowedContacts}
-          villages={allowedVillages}
-          mandals={allowedMandals}
-          khands={allowedKhands}
+          contacts={contacts}
+          villages={villages}
+          mandals={mandals}
+          khands={khands}
           customLists={customLists}
           onClose={() => setIsAddingIdea(false)}
           onSubmit={(data: any) => {
@@ -2680,10 +2627,10 @@ const App: React.FC = () => {
       {isManagingMembers && selectedListId && (
        <ManageListMembersModal 
           list={customLists.find(l => l.id === selectedListId)!}
-          contacts={allowedContacts}
-          khands={allowedKhands}
-          mandals={allowedMandals}
-          villages={allowedVillages}
+          contacts={contacts}
+          khands={khands}
+          mandals={mandals}
+          villages={villages}
           onClose={() => setIsManagingMembers(false)}
           onSave={(newPeopleIds: string[]) => {
             setCustomLists(prev => prev.map(l => l.id === selectedListId ? { ...l, peopleIds: newPeopleIds } : l));
@@ -2701,10 +2648,10 @@ const App: React.FC = () => {
       {isBulkUpdateModalOpen && (
         <BulkUpdateModal 
           selectedCount={selectedPeopleIds.length}
-          contacts={allowedContacts}
-          khands={allowedKhands}
-          mandals={allowedMandals}
-          villages={allowedVillages}
+          contacts={contacts}
+          khands={khands}
+          mandals={mandals}
+          villages={villages}
           categories={categories}
           onClose={() => setIsBulkUpdateModalOpen(false)}
           onUpdate={handleBulkUpdate}
@@ -4814,9 +4761,7 @@ const GridMenuItem = ({ icon: Icon, label, color, onClick, delay = 0, variant = 
   );
 };
 
-const MenuTab = ({ userName, setUserName, appUser, userRole, setActiveTab }: any) => {
-  const hasPerm = (perm: Permission) => userRole?.permissions?.includes(perm);
-
+const MenuTab = ({ userName, setUserName, appUser, setActiveTab }: any) => {
   return (
     <div className="flex flex-col h-full bg-[#f8fafc] dark:bg-[#020617] overflow-hidden">
       {/* Compact Static Header */}
@@ -4839,7 +4784,7 @@ const MenuTab = ({ userName, setUserName, appUser, userRole, setActiveTab }: any
                 placeholder="नमो नमः..."
               />
               <p className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] leading-none">
-                {appUser ? (userRole ? userRole.name : 'No Role Assigned') : 'Guest'}
+                {appUser ? (appUser.roleId ? 'Swayamsevak' : 'No Role Assigned') : 'Guest'}
               </p>
             </div>
           </div>
@@ -4860,94 +4805,74 @@ const MenuTab = ({ userName, setUserName, appUser, userRole, setActiveTab }: any
       {/* Grid Optimized for Zero Scroll */}
       <div className="p-4 flex-1 overflow-hidden flex flex-col">
         <div className="grid grid-cols-3 gap-3">
-          {(!appUser || hasPerm('manage_events')) && (
-            <GridMenuItem 
-              delay={0}
-              icon={CalendarIcon} 
-              label="कार्यक्रम" 
-              color="bg-rose-500 text-white"
-              onClick={() => setActiveTab('events')} 
-            />
-          )}
-          {(!appUser || hasPerm('manage_contacts')) && (
-            <GridMenuItem 
-              delay={1}
-              icon={ListIcon} 
-              label="समूह" 
-              color="bg-indigo-500 text-white"
-              onClick={() => setActiveTab('lists')} 
-            />
-          )}
-          {(!appUser || hasPerm('manage_contacts')) && (
-            <GridMenuItem 
-              delay={2}
-              icon={Compass} 
-              label="प्रवास" 
-              color="bg-orange-500 text-white"
-              onClick={() => setActiveTab('trips')} 
-            />
-          )}
+          <GridMenuItem 
+            delay={0}
+            icon={CalendarIcon} 
+            label="कार्यक्रम" 
+            color="bg-rose-500 text-white"
+            onClick={() => setActiveTab('events')} 
+          />
+          <GridMenuItem 
+            delay={1}
+            icon={ListIcon} 
+            label="समूह" 
+            color="bg-indigo-500 text-white"
+            onClick={() => setActiveTab('lists')} 
+          />
+          <GridMenuItem 
+            delay={2}
+            icon={Rocket} 
+            label="प्रवास" 
+            color="bg-orange-500 text-white"
+            onClick={() => setActiveTab('trips')} 
+          />
           <GridMenuItem 
             delay={3}
-            icon={Rocket} 
-            label="गतिविधियां" 
-            color="bg-cyan-600 text-white"
-            onClick={() => setActiveTab('activities')} 
+            icon={Building2} 
+            label="संगठन" 
+            color="bg-blue-600 text-white"
+            onClick={() => setActiveTab('work-status')} 
           />
-          {(!appUser || hasPerm('manage_areas')) && (
-            <GridMenuItem 
-              delay={4}
-              icon={Building2} 
-              label="संगठन" 
-              color="bg-blue-600 text-white"
-              onClick={() => setActiveTab('work-status')} 
-            />
-          )}
-          {(!appUser || hasPerm('manage_areas')) && (
-            <GridMenuItem 
-              delay={5}
-              icon={MapPin} 
-              label="क्षेत्रीय" 
-              color="bg-emerald-600 text-white"
-              onClick={() => setActiveTab('area-mgmt')} 
-            />
-          )}
           <GridMenuItem 
-            delay={6}
+            delay={4}
+            icon={MapPin} 
+            label="क्षेत्रीय" 
+            color="bg-emerald-600 text-white"
+            onClick={() => setActiveTab('area-mgmt')} 
+          />
+          <GridMenuItem 
+            delay={5}
             icon={Lightbulb} 
-            label="विजन & फीडबैक" 
+            label="विजन" 
             color="bg-purple-600 text-white"
             onClick={() => setActiveTab('ideas')} 
           />
           
-          {(!appUser || hasPerm('view_reports')) && (
-            <GridMenuItem 
-              variant="wide"
-              delay={7}
-              icon={FileText} 
-              label="रिपोर्ट्स एवं डेटा" 
-              color="bg-pink-600 text-white"
-              onClick={() => setActiveTab('reports')} 
-            />
-          )}
+          <GridMenuItem 
+            variant="wide"
+            delay={6}
+            icon={FileText} 
+            label="रिपोर्ट्स एवं डेटा" 
+            color="bg-pink-600 text-white"
+            onClick={() => setActiveTab('reports')} 
+          />
           
           <GridMenuItem 
-            delay={8}
+            variant="wide"
+            delay={7}
             icon={Settings} 
             label="सेटिंग्स" 
             color="bg-slate-700 text-white"
             onClick={() => setActiveTab('settings')} 
           />
-          {(!appUser || hasPerm('manage_users')) && (
-            <GridMenuItem 
-              variant="wide"
-              delay={9}
-              icon={ShieldCheck} 
-              label="एडमिन व अधिकार" 
-              color="bg-blue-800 text-white"
-              onClick={() => setActiveTab('admin')} 
-            />
-          )}
+          <GridMenuItem 
+            variant="wide"
+            delay={8}
+            icon={ShieldCheck} 
+            label="एडमिन व अधिकार" 
+            color="bg-blue-800 text-white"
+            onClick={() => setActiveTab('admin')} 
+          />
         </div>
 
         <div className="mt-auto flex flex-col items-center gap-1 opacity-20 py-4">
