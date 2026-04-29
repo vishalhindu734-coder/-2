@@ -124,7 +124,7 @@ import { ChatView } from './components/ChatView';
 import { generateVolunteerTemplate, parseVolunteerExcel } from './excelUtils';
 import { auth, db, signInWithGoogle, signInWithUsername, createUsernameAccount, logout, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, setDoc, deleteDoc, updateDoc, collection, onSnapshot, getDocFromServer } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, updateDoc, collection, onSnapshot, getDocFromServer, query, where } from 'firebase/firestore';
 import { AppUser, ChatRoom, ChatMessage, AppRole, Permission } from './types';
 
 type Tab = 'home' | 'swayamsevak' | 'people' | 'trips' | 'lists' | 'groups' | 'work-status' | 'menu' | 'area-mgmt' | 'cat-mgmt' | 'list-cat-mgmt' | 'calendar' | 'event-cat-mgmt' | 'activities' | 'ideas' | 'events' | 'event-detail' | 'settings' | 'reports' | 'admin' | 'messages';
@@ -439,6 +439,58 @@ const App: React.FC = () => {
   // Disabled global sync for chat
   // useDataSync('chatRooms', chatRooms as any[], setChatRooms as any, appUser);
   // useDataSync('chatMessages', chatMessages as any[], setChatMessages as any, appUser);
+
+  const [notificationToast, setNotificationToast] = useState<{title: string, body: string} | null>(null);
+
+  useEffect(() => {
+    if (!appUser?.uid || appUser.uid === 'anonymous') return;
+    
+    // Request permission for Out-of-app Push Notifications
+    if ('Notification' in window) {
+      Notification.requestPermission();
+    }
+
+    const q = query(collection(db, 'chatRooms'), where('participantIds', 'array-contains', appUser.uid));
+    const unsub = onSnapshot(q, (snap) => {
+      // Look at rooms that just modified
+      snap.docChanges().forEach(change => {
+        if (change.type === 'modified') {
+          const room = change.doc.data() as ChatRoom;
+          // If a new message arrived, and it's not sent by us!
+          if (room.lastSenderId && room.lastSenderId !== appUser.uid) {
+            
+            // Resolve Sender Name (try to find linked contact)
+            let authorName = 'Someone';
+            // We can look them up if we want, or just fallback to 'New Message'
+            authorName = `New message in ${room.name || 'Chat'}`;
+            
+            const messageBody = room.lastMessage || 'Sent an attachment';
+
+            // 1. In-App Notification (Toast)
+            setNotificationToast({ title: authorName, body: messageBody });
+            setTimeout(() => setNotificationToast(null), 5000);
+
+            // 2. Out-of-App Notification (OS)
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification(authorName, {
+                body: messageBody,
+                icon: '/icon-192x192.png' // Use a generic icon or app icon
+              });
+            }
+          }
+        } else if (change.type === 'added') {
+          // If we receive a completely new room where someone else wrote
+          const room = change.doc.data() as ChatRoom;
+          // But usually we don't know if it's new historically or new right now.
+          // In a real app we check timestamps, but we can skip 'added' to avoid spamming on reload.
+        }
+      });
+    }, err => {
+      // Silent catch or standard handler
+    });
+
+    return () => unsub();
+  }, [appUser]);
 
   useEffect(() => {
     async function testConnection() {
@@ -2762,6 +2814,28 @@ const App: React.FC = () => {
 
   return (
    <div className="min-h-[100dvh] w-full relative font-sans transition-colors duration-300 bg-transparent flex">
+     <AnimatePresence>
+       {notificationToast && (
+         <motion.div
+           initial={{ opacity: 0, y: -20, x: '-50%' }}
+           animate={{ opacity: 1, y: 20, x: '-50%' }}
+           exit={{ opacity: 0, y: -20, x: '-50%' }}
+           className="fixed top-0 left-1/2 z-[9999] bg-white dark:bg-gray-800 shadow-2xl border border-gray-200 dark:border-gray-700 p-4 rounded-2xl flex items-center gap-3 min-w-[300px] cursor-pointer"
+           onClick={() => {
+             setNotificationToast(null);
+             setActiveTab('messages');
+           }}
+         >
+           <div className="w-10 h-10 bg-[#FF9933]/10 text-[#FF9933] rounded-full flex items-center justify-center shrink-0">
+             <MessageSquare className="w-5 h-5" />
+           </div>
+           <div className="flex-1 min-w-0">
+             <h4 className="font-bold text-gray-900 dark:text-white truncate">{notificationToast.title}</h4>
+             <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{notificationToast.body}</p>
+           </div>
+         </motion.div>
+       )}
+     </AnimatePresence>
      <AbstractBackground />
 
      {/* Desktop Sidebar */}
@@ -2928,6 +3002,8 @@ const App: React.FC = () => {
             <ChatView 
               appUser={appUser} 
               contacts={contacts} 
+              events={events}
+              customLists={customLists}
               onBack={() => setActiveTab('menu')} 
             />
           </div>

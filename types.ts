@@ -192,6 +192,20 @@ export interface ChatRoom {
   participantIds: string[];
   lastMessage?: string;
   lastMessageTime?: string;
+  lastSenderId?: string;
+}
+
+export interface Attachment {
+  type: 'image' | 'file';
+  url: string;
+  name?: string;
+  size?: number;
+}
+
+export interface MessageReference {
+  type: 'contact' | 'event' | 'feedback' | 'list';
+  id: string;
+  name: string;
 }
 
 export interface ChatMessage {
@@ -202,6 +216,8 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   participantIds?: string[];
+  attachment?: Attachment;
+  reference?: MessageReference;
 }
 
 // ---- Role Based Access Control Models ---- //

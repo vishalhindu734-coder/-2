@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AppUser, Contact, ChatRoom, ChatMessage } from '../types';
-import { ArrowLeft, Send, Users, User, Plus, MessageSquare } from 'lucide-react';
+import { AppUser, Contact, ChatRoom, ChatMessage, Attachment, MessageReference, CustomList } from '../types';
+import { EventModel } from '../App';
+import { ArrowLeft, Send, Users, User, Plus, MessageSquare, Paperclip, Link, X, FileText, CalendarDays, LayoutList } from 'lucide-react';
 import { collection, addDoc, doc, setDoc, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 
 interface ChatViewProps {
   appUser: AppUser | null;
   contacts: Contact[];
+  events?: EventModel[];
+  customLists?: CustomList[];
   onBack: () => void;
 }
 
-export const ChatView: React.FC<ChatViewProps> = ({ appUser, contacts, onBack }) => {
+export const ChatView: React.FC<ChatViewProps> = ({ appUser, contacts, events = [], customLists = [], onBack }) => {
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
@@ -45,6 +48,11 @@ export const ChatView: React.FC<ChatViewProps> = ({ appUser, contacts, onBack })
     return () => unsub();
   }, [myUserId]);
 
+  const [attachment, setAttachment] = useState<Attachment | null>(null);
+  const [reference, setReference] = useState<MessageReference | null>(null);
+  const [showRefMenu, setShowRefMenu] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
   // Fetch Messages for active room
   useEffect(() => {
     if (!activeRoomId || !myUserId || myUserId === 'anonymous') return;
@@ -59,33 +67,67 @@ export const ChatView: React.FC<ChatViewProps> = ({ appUser, contacts, onBack })
     return () => unsub();
   }, [activeRoomId, myUserId]);
 
+  const handleAttachment = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const isImage = file.type.startsWith('image/');
+    
+    if (file.size > 500 * 1024) {
+      alert("Please select a file under 500KB.");
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setAttachment({
+        type: isImage ? 'image' : 'file',
+        url: event.target?.result as string,
+        name: file.name,
+        size: file.size
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !activeRoomId) return;
+    if ((!newMessage.trim() && !attachment && !reference) || !activeRoomId) return;
 
     try {
       const room = chatRooms.find(r => r.id === activeRoomId);
       if (!room) return;
 
-      const msgData = {
+      let msgText = newMessage.trim();
+      let lastMsgPreview = msgText;
+      if (!lastMsgPreview) {
+        if (attachment) lastMsgPreview = attachment.type === 'image' ? '📷 Image' : '📎 File';
+        else if (reference) lastMsgPreview = `🔗 ${reference.name}`;
+      }
+
+      const msgData: ChatMessage = {
         id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
         roomId: activeRoomId,
         senderId: myUserId,
         senderName: myUserName,
-        text: newMessage,
+        text: msgText,
         timestamp: new Date().toISOString(),
-        participantIds: room.participantIds // Important for security rule!
+        participantIds: room.participantIds,
+        ...(attachment && { attachment }),
+        ...(reference && { reference })
       };
       
       await setDoc(doc(db, 'chatMessages', msgData.id), msgData);
       
       const roomRef = doc(db, 'chatRooms', activeRoomId);
       await setDoc(roomRef, {
-        lastMessage: newMessage,
-        lastMessageTime: msgData.timestamp
+        lastMessage: lastMsgPreview,
+        lastMessageTime: msgData.timestamp,
+        lastSenderId: myUserId
       }, { merge: true });
 
       setNewMessage('');
+      setAttachment(null);
+      setReference(null);
     } catch(err) {
       console.error(err);
     }
@@ -160,14 +202,32 @@ export const ChatView: React.FC<ChatViewProps> = ({ appUser, contacts, onBack })
           <h2 className="font-bold text-lg">{roomName}</h2>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 dark:bg-gray-800">
+        <main className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 dark:bg-gray-800 relative">
           {currentMessages.map((m, idx) => {
             const isMe = m.senderId === myUserId;
             return (
               <div key={m.id || idx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                <div className={`max-w-[75%] p-3 rounded-2xl ${isMe ? 'bg-[#FF9933] text-white rounded-br-none' : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-bl-none shadow-sm'}`}>
+                <div className={`max-w-[85%] p-3 rounded-2xl ${isMe ? 'bg-[#FF9933] text-white rounded-br-none' : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-bl-none shadow-sm'}`}>
                   {!isMe && room?.type === 'group' && <div className="text-xs font-bold mb-1 opacity-70">{m.senderName}</div>}
-                  <div>{m.text}</div>
+                  
+                  {m.reference && (
+                    <div className={`flex items-center gap-2 p-2 rounded mb-2 text-sm ${isMe ? 'bg-white/20' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                      {m.reference.type === 'contact' ? <User size={14} /> : m.reference.type === 'event' ? <CalendarDays size={14} /> : <LayoutList size={14} />}
+                      <span className="truncate font-medium">{m.reference.name}</span>
+                    </div>
+                  )}
+
+                  {m.attachment && m.attachment.type === 'image' && (
+                    <img src={m.attachment.url} alt="attached" className="max-w-full rounded-lg mb-2 object-contain" style={{ maxHeight: '200px' }} />
+                  )}
+                  {m.attachment && m.attachment.type === 'file' && (
+                    <div className={`flex items-center gap-2 p-2 rounded mb-2 text-sm ${isMe ? 'bg-white/20' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                      <FileText size={16} />
+                      <span className="truncate">{m.attachment.name}</span>
+                    </div>
+                  )}
+
+                  {m.text && <div>{m.text}</div>}
                   <div className={`text-[10px] text-right mt-1 ${isMe ? 'text-white/70' : 'text-gray-400'}`}>
                     {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
@@ -178,19 +238,75 @@ export const ChatView: React.FC<ChatViewProps> = ({ appUser, contacts, onBack })
           <div ref={messagesEndRef} />
         </main>
 
-        <footer className="p-3 bg-white dark:bg-gray-900 border-t dark:border-gray-800 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-          <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-            <input 
-              type="text" 
-              value={newMessage}
-              onChange={e => setNewMessage(e.target.value)}
-              placeholder="Message..." 
-              className="flex-1 bg-gray-100 dark:bg-gray-800 border-none rounded-full px-4 py-3 outline-none focus:ring-2 focus:ring-[#FF9933]/50 dark:text-white"
-            />
-            <button type="submit" disabled={!newMessage.trim()} className="bg-[#FF9933] text-white p-3 rounded-full disabled:opacity-50 hover:bg-[#e68a2e] transition-colors">
-              <Send className="w-5 h-5" />
-            </button>
-          </form>
+        <footer className="bg-white dark:bg-gray-900 border-t dark:border-gray-800 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] text-sm relative">
+          {showRefMenu && (
+            <div className="absolute bottom-[100%] left-0 w-full bg-white dark:bg-gray-800 border-b dark:border-gray-700 p-2 shadow-lg z-10 max-h-48 overflow-y-auto">
+              <div className="flex justify-between items-center mb-2 px-2">
+                <span className="font-bold text-xs uppercase text-gray-500">Attach Reference</span>
+                <button onClick={() => setShowRefMenu(false)}><X size={16} className="text-gray-400"/></button>
+              </div>
+              <div className="space-y-1">
+                {contacts.slice(0, 5).map(c => (
+                  <button key={c.id} onClick={() => { setReference({type: 'contact', id: c.id, name: c.name}); setShowRefMenu(false); }} className="w-full text-left p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded flex items-center gap-2">
+                    <User size={14} className="text-blue-500"/><span className="truncate dark:text-gray-200">{c.name}</span>
+                  </button>
+                ))}
+                {events.slice(0, 5).map(e => (
+                  <button key={e.id} onClick={() => { setReference({type: 'event', id: e.id, name: e.name}); setShowRefMenu(false); }} className="w-full text-left p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded flex items-center gap-2">
+                    <CalendarDays size={14} className="text-orange-500"/><span className="truncate dark:text-gray-200">{e.name}</span>
+                  </button>
+                ))}
+                {customLists.slice(0, 5).map(l => (
+                  <button key={l.id} onClick={() => { setReference({type: 'list', id: l.id, name: l.name}); setShowRefMenu(false); }} className="w-full text-left p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded flex items-center gap-2">
+                    <LayoutList size={14} className="text-purple-500"/><span className="truncate dark:text-gray-200">{l.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="p-3">
+            {(attachment || reference) && (
+              <div className="flex gap-2 mb-2 overflow-x-auto pb-1">
+                {attachment && (
+                  <div className="flex items-center gap-2 p-1.5 px-3 bg-gray-100 dark:bg-gray-800 rounded-full text-xs">
+                    {attachment.type === 'image' ? <span className="text-blue-500">📷</span> : <FileText size={12} className="text-blue-500" />}
+                    <span className="truncate max-w-[100px] dark:text-gray-300">{attachment.name}</span>
+                    <button onClick={() => setAttachment(null)}><X size={12} className="text-gray-500 hover:text-red-500"/></button>
+                  </div>
+                )}
+                {reference && (
+                  <div className="flex items-center gap-2 p-1.5 px-3 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-xs">
+                    <Link size={12} />
+                    <span className="truncate max-w-[100px]">{reference.name}</span>
+                    <button onClick={() => setReference(null)}><X size={12} className="hover:text-red-500"/></button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 bg-gray-50 dark:bg-gray-800 rounded-full shrink-0">
+                <Paperclip className="w-5 h-5" />
+              </button>
+              <input type="file" ref={fileInputRef} onChange={handleAttachment} className="hidden" accept="image/*,.pdf,.doc,.docx" />
+              
+              <button type="button" onClick={() => setShowRefMenu(!showRefMenu)} className={`p-2 rounded-full shrink-0 ${showRefMenu ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 bg-gray-50 dark:bg-gray-800'}`}>
+                <Link className="w-5 h-5" />
+              </button>
+
+              <input 
+                type="text" 
+                value={newMessage}
+                onChange={e => setNewMessage(e.target.value)}
+                placeholder="Message..." 
+                className="flex-1 bg-gray-100 dark:bg-gray-800 border-none rounded-full px-4 py-2.5 outline-none focus:ring-2 focus:ring-[#FF9933]/50 dark:text-white min-w-0"
+              />
+              <button type="submit" disabled={!newMessage.trim() && !attachment && !reference} className="bg-[#FF9933] text-white p-2.5 rounded-full disabled:opacity-50 hover:bg-[#e68a2e] transition-colors shrink-0">
+                <Send className="w-5 h-5" />
+              </button>
+            </form>
+          </div>
         </footer>
       </motion.div>
     );
