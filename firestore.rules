@@ -92,18 +92,18 @@ service cloud.firestore {
       allow create, update, delete: if isSignedIn();
     }
     match /chatRooms/{roomId} {
-      allow get: if isSignedIn() && (request.auth.uid in resource.data.participantIds);
-      allow list: if isSignedIn() && (request.auth.uid in resource.data.participantIds);
-      allow update: if isSignedIn() && (request.auth.uid in resource.data.participantIds);
-      allow create: if isSignedIn() && (request.auth.uid in incoming().participantIds);
+      allow get: if isSignedIn() && ('participantIds' in resource.data) && (request.auth.uid in resource.data.participantIds);
+      allow list: if isSignedIn() && ('participantIds' in resource.data) && (request.auth.uid in resource.data.participantIds);
+      allow update: if isSignedIn() && ('participantIds' in resource.data) && (request.auth.uid in resource.data.participantIds);
+      allow create: if isSignedIn() && ('participantIds' in incoming()) && (request.auth.uid in incoming().participantIds);
       allow delete: if isAdmin();
     }
 
     match /chatMessages/{messageId} {
-      allow get: if isSignedIn() && (request.auth.uid in resource.data.participantIds);
-      allow list: if isSignedIn() && (request.auth.uid in resource.data.participantIds);
-      allow update: if isSignedIn() && (request.auth.uid in resource.data.participantIds);
-      allow create: if isSignedIn() && (request.auth.uid in incoming().participantIds) && (request.auth.uid == incoming().senderId);
+      allow get: if isSignedIn() && ('participantIds' in resource.data) && (request.auth.uid in resource.data.participantIds);
+      allow list: if isSignedIn() && ('participantIds' in resource.data) && (request.auth.uid in resource.data.participantIds);
+      allow update: if isSignedIn() && ('participantIds' in resource.data) && (request.auth.uid in resource.data.participantIds);
+      allow create: if isSignedIn() && ('participantIds' in incoming()) && (request.auth.uid in incoming().participantIds) && (request.auth.uid == incoming().senderId);
       allow delete: if isAdmin();
     }
 

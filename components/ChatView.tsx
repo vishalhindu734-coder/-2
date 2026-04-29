@@ -130,15 +130,15 @@ export const ChatView: React.FC<ChatViewProps> = ({ appUser, contacts, onBack })
   };
 
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  
+  const currentMessages = chatMessages.filter(m => m.roomId === activeRoomId).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+  React.useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [currentMessages]);
 
   if (activeRoomId) {
     const room = chatRooms.find(r => r.id === activeRoomId);
-
-    const messages = chatMessages.filter(m => m.roomId === activeRoomId).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-    React.useEffect(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
 
     let roomName = room?.name || 'Chat';
     if (room?.type === 'direct') {
@@ -161,7 +161,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ appUser, contacts, onBack })
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 dark:bg-gray-800">
-          {messages.map((m, idx) => {
+          {currentMessages.map((m, idx) => {
             const isMe = m.senderId === myUserId;
             return (
               <div key={m.id || idx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
