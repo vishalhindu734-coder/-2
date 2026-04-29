@@ -92,14 +92,16 @@ service cloud.firestore {
       allow create, update, delete: if isSignedIn();
     }
     match /chatRooms/{roomId} {
-      allow read: if isSignedIn();
+      allow get: if isSignedIn() && (request.auth.uid in resource.data.participantIds);
+      allow list: if isSignedIn() && (request.auth.uid in resource.data.participantIds);
       allow update: if isSignedIn() && (request.auth.uid in resource.data.participantIds);
       allow create: if isSignedIn() && (request.auth.uid in incoming().participantIds);
       allow delete: if isAdmin();
     }
 
     match /chatMessages/{messageId} {
-      allow read: if isSignedIn();
+      allow get: if isSignedIn() && (request.auth.uid in resource.data.participantIds);
+      allow list: if isSignedIn() && (request.auth.uid in resource.data.participantIds);
       allow update: if isSignedIn() && (request.auth.uid in resource.data.participantIds);
       allow create: if isSignedIn() && (request.auth.uid in incoming().participantIds) && (request.auth.uid == incoming().senderId);
       allow delete: if isAdmin();

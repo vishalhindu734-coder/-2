@@ -125,7 +125,7 @@ import { generateVolunteerTemplate, parseVolunteerExcel } from './excelUtils';
 import { auth, db, signInWithGoogle, signInWithUsername, createUsernameAccount, logout, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, setDoc, deleteDoc, updateDoc, collection, onSnapshot, getDocFromServer } from 'firebase/firestore';
-import { AppUser, ChatRoom, ChatMessage } from './types';
+import { AppUser, ChatRoom, ChatMessage, AppRole, Permission } from './types';
 
 type Tab = 'home' | 'swayamsevak' | 'people' | 'trips' | 'lists' | 'groups' | 'work-status' | 'menu' | 'area-mgmt' | 'cat-mgmt' | 'list-cat-mgmt' | 'calendar' | 'event-cat-mgmt' | 'activities' | 'ideas' | 'events' | 'event-detail' | 'settings' | 'reports' | 'admin' | 'messages';
 
@@ -325,16 +325,16 @@ const App: React.FC = () => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Core State
-  const [ideas, setIdeas] = useState<Idea[]>(() => loadData('ideas', []));
+  const [ideasRaw, setIdeas] = useState<Idea[]>(() => loadData('ideas', []));
   const [events, setEvents] = useState<EventModel[]>(() => loadData('events', []));
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>(() => loadData('chatRooms', []));
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => loadData('chatMessages', []));
   const [activeTab, setActiveTab] = useState<Tab>('home');
-  const [khands, setKhands] = useState<Khand[]>(() => loadData('khands', INITIAL_KHANDS));
-  const [mandals, setMandals] = useState<Mandal[]>(() => loadData('mandals', INITIAL_MANDALS));
-  const [villages, setVillages] = useState<Village[]>(() => loadData('villages', INITIAL_VILLAGES));
-  const [contacts, setContacts] = useState<Contact[]>(() => loadData('contacts', INITIAL_CONTACTS));
-  const [trips, setTrips] = useState<TripPlan[]>(() => loadData('trips', INITIAL_TRIPS));
+  const [khandsRaw, setKhands] = useState<Khand[]>(() => loadData('khands', INITIAL_KHANDS));
+  const [mandalsRaw, setMandals] = useState<Mandal[]>(() => loadData('mandals', INITIAL_MANDALS));
+  const [villagesRaw, setVillages] = useState<Village[]>(() => loadData('villages', INITIAL_VILLAGES));
+  const [contactsRaw, setContacts] = useState<Contact[]>(() => loadData('contacts', INITIAL_CONTACTS));
+  const [tripsRaw, setTrips] = useState<TripPlan[]>(() => loadData('trips', INITIAL_TRIPS));
   const [tripTimeFilter, setTripTimeFilter] = useState<'all' | 'today' | 'yesterday' | 'week' | 'month' | 'year'>('all');
   const [tripViewMode, setTripViewMode] = useState<'list' | 'calendar'>(() => loadData('tripViewMode', 'list'));
   const [calendarViewType, setCalendarViewType] = useState<'1day' | '3day' | 'week' | 'month' | 'schedule'>('month');
@@ -356,9 +356,10 @@ const App: React.FC = () => {
     return data;
   });
 
-  const [customLists, setCustomLists] = useState<CustomList[]>(() => loadData('customLists', INITIAL_LISTS));
+  const [customListsRaw, setCustomLists] = useState<CustomList[]>(() => loadData('customLists', INITIAL_LISTS));
   const [listCategories, setListCategories] = useState<Category[]>(() => loadData('listCategories', INITIAL_LIST_CATEGORIES));
-  const [meetings, setMeetings] = useState<Meeting[]>(() => loadData('meetings', []));
+  const [meetingsRaw, setMeetings] = useState<Meeting[]>(() => loadData('meetings', []));
+  const [roles, setRoles] = useState<AppRole[]>(() => loadData('roles', []));
   const [darkMode, setDarkMode] = useState(() => loadData('darkMode', false));
   const [appTheme, setAppTheme] = useState(() => loadData('appTheme', 'default'));
   const [appFont, setAppFont] = useState(() => loadData('appFont', 'baloo'));
@@ -394,17 +395,46 @@ const App: React.FC = () => {
     const [isBulkUpdateModalOpen, setIsBulkUpdateModalOpen] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
 
-  useDataSync('contacts', contacts as any[], setContacts as any, appUser);
-  useDataSync('khands', khands as any[], setKhands as any, appUser);
-  useDataSync('mandals', mandals as any[], setMandals as any, appUser);
-  useDataSync('villages', villages as any[], setVillages as any, appUser);
-  useDataSync('trips', trips as any[], setTrips as any, appUser);
-  useDataSync('lists', customLists as any[], setCustomLists as any, appUser);
+  // User Permissions Helper
+  const hasPermission = (permissionId: Permission) => {
+    if (!appUser) return false;
+    if (appUser.roleId === 'admin') return true;
+    if (!appUser.roleId) return false;
+    const userRole = roles.find(r => r.id === appUser.roleId);
+    if (!userRole) return false;
+    return userRole.permissions?.includes(permissionId);
+  };
+
+  // Safe area checks
+  const canAccessVillage = (vid: string) => {
+    if (!appUser || appUser.roleId === 'admin') return true;
+    if (!appUser.areaPermissions) return true;
+    const v = villagesRaw.find(v => v.id === vid);
+    if (!v) return false;
+    return (appUser.areaPermissions.villageIds || []).includes(vid) || (appUser.areaPermissions.mandalIds || []).includes(v.mandalId) || (appUser.areaPermissions.khandIds || []).includes(villagesRaw.find(v=>v.id === vid)?.mandalId ? mandalsRaw.find(m=>m.id === v.mandalId)?.khandId || '' : '');
+  };
+
+  const khands = khandsRaw.filter(k => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (appUser.areaPermissions.khandIds || []).includes(k.id));
+  const mandals = mandalsRaw.filter(m => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (appUser.areaPermissions.mandalIds || []).includes(m.id) || (appUser.areaPermissions.khandIds || []).includes(m.khandId));
+  const villages = villagesRaw.filter(v => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (appUser.areaPermissions.villageIds || []).includes(v.id) || (appUser.areaPermissions.mandalIds || []).includes(v.mandalId) || (appUser.areaPermissions.khandIds || []).includes(mandalsRaw.find(m=>m.id === v.mandalId)?.khandId || ''));
+  const contacts = contactsRaw.filter(c => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (appUser.areaPermissions.villageIds || []).includes(c.villageId) || (appUser.areaPermissions.mandalIds || []).includes(c.mandalId) || (appUser.areaPermissions.khandIds || []).includes(c.khandId));
+  const trips = tripsRaw.filter(t => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (appUser.areaPermissions.khandIds || []).includes(t.khandId) || (appUser.areaPermissions.mandalIds || []).includes(t.mandalId) || (t.villageIds || []).some(vid => (appUser.areaPermissions!.villageIds || []).includes(vid)));
+  const customLists = customListsRaw.filter(l => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (l.peopleIds || []).some(pid => contacts.some(fc => fc.id === pid)));
+  const meetings = meetingsRaw.filter(m => appUser?.roleId === 'admin' || !appUser?.areaPermissions || customLists.some(fl => fl.id === m.listId));
+  const ideas = ideasRaw.filter(i => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (!i.khandId && !i.mandalId && !i.villageId && !i.contactId) || (i.khandId && (appUser.areaPermissions.khandIds || []).includes(i.khandId)) || (i.mandalId && (appUser.areaPermissions.mandalIds || []).includes(i.mandalId)) || (i.villageId && (appUser.areaPermissions.villageIds || []).includes(i.villageId)) || (i.contactId && contacts.some(c => c.id === i.contactId)));
+
+  useDataSync('contacts', contactsRaw as any[], setContacts as any, appUser);
+  useDataSync('khands', khandsRaw as any[], setKhands as any, appUser);
+  useDataSync('mandals', mandalsRaw as any[], setMandals as any, appUser);
+  useDataSync('villages', villagesRaw as any[], setVillages as any, appUser);
+  useDataSync('trips', tripsRaw as any[], setTrips as any, appUser);
+  useDataSync('lists', customListsRaw as any[], setCustomLists as any, appUser);
   useDataSync('categories', categories as any[], setCategories as any, appUser);
   useDataSync('eventCategories', eventCategories as any[], setEventCategories as any, appUser);
   useDataSync('listCategories', listCategories as any[], setListCategories as any, appUser);
-  useDataSync('meetings', meetings as any[], setMeetings as any, appUser);
-  useDataSync('ideas', ideas as any[], setIdeas as any, appUser);
+  useDataSync('meetings', meetingsRaw as any[], setMeetings as any, appUser);
+  useDataSync('roles', roles as any[], setRoles as any, appUser);
+  useDataSync('ideas', ideasRaw as any[], setIdeas as any, appUser);
   useDataSync('events', events as any[], setEvents as any, appUser);
   // Disabled global sync for chat
   // useDataSync('chatRooms', chatRooms as any[], setChatRooms as any, appUser);
@@ -464,7 +494,7 @@ const App: React.FC = () => {
 
   const filteredPeople = useMemo(() => {
     return contacts.filter(c => {
-      const matchSearch = c.name.toLowerCase().includes(peopleSearch.toLowerCase()) || (c.phone && c.phone.includes(peopleSearch));
+      const matchSearch = (c.name || '').toLowerCase().includes(peopleSearch.toLowerCase()) || (c.phone && c.phone.includes(peopleSearch));
       const matchStatus = peopleStatusFilter === 'all' || c.status === peopleStatusFilter;
       const matchCategory = peopleCategoryFilter === 'all' || c.category === peopleCategoryFilter;
       
@@ -1279,7 +1309,7 @@ const App: React.FC = () => {
   const renderSwayamsevak = () => {
     // Filter by search and area first
     const filtered = contacts.filter(c => {
-      const matchSearch = c.name.toLowerCase().includes(peopleSearch.toLowerCase()) || c.phone.includes(peopleSearch);
+      const matchSearch = (c.name || '').toLowerCase().includes(peopleSearch.toLowerCase()) || (c.phone && c.phone.includes(peopleSearch));
       const matchArea = (dashKhand === 'all' || c.khandId === dashKhand) && (dashMandal === 'all' || c.mandalId === dashMandal);
       return matchSearch && matchArea;
     });
@@ -1687,7 +1717,7 @@ const App: React.FC = () => {
                                        </div>
                                      ) : (
                                        <div className={`w-10 h-10 rounded-xl flex-none flex items-center justify-center text-white font-bold text-base shadow-inner ${recentlyCalled ? 'bg-gradient-to-br from-orange-400 to-orange-600 shadow-orange-500/20' : 'bg-gradient-to-br from-blue-400 to-blue-600 shadow-blue-500/20'}`}>
-                                          {c.name[0]}
+                                          {(c.name || '?')[0]}
                                        </div>
                                      )}
                                      <div className="flex-1 min-w-0">
@@ -1870,7 +1900,7 @@ const App: React.FC = () => {
                <div className="bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 dark:border-gray-800 p-8 rounded-2xl text-center text-gray-400 font-medium text-[10px] uppercase tracking-widest italic opacity-60">कोई योजना नहीं</div>
               ) : (
                 sortedTrips.map(trip => {
-                  const hasIdea = ideas.some(i => !i.isCompleted && (i.mandalId === trip.mandalId || trip.villageIds.includes(i.villageId) || trip.peopleIds.includes(i.contactId)));
+                  const hasIdea = ideas.some(i => !i.isCompleted && (i.mandalId === trip.mandalId || (trip.villageIds || []).includes(i.villageId) || (trip.peopleIds || []).includes(i.contactId)));
                   return (
                    <div key={trip.id} onClick={() => setViewingTrip(trip)} className="bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 dark:border-gray-800 p-3 rounded-xl shadow-sm border-l-4 border-l-orange-500 relative animate-in slide-in-from-bottom-2 duration-300">
                      <div className="flex justify-between items-start mb-1.5">
@@ -1976,24 +2006,24 @@ const App: React.FC = () => {
       }
 
       // If we reach here, list exists
-      const listContacts = contacts.filter(c => list.peopleIds.includes(c.id));
+      const listContacts = contacts.filter(c => (list.peopleIds || []).includes(c.id));
       
       const togglePresence = (cid: string) => {
         setMeetings(prev => prev.map(m => {
           if (m.id !== meeting.id) return m;
-          const isPresent = m.presentPeopleIds.includes(cid);
+          const isPresent = (m.presentPeopleIds || []).includes(cid);
           return {
             ...m,
             presentPeopleIds: isPresent 
-              ? m.presentPeopleIds.filter(id => id !== cid)
-              : [...m.presentPeopleIds, cid]
+              ? (m.presentPeopleIds || []).filter(id => id !== cid)
+              : [...(m.presentPeopleIds || []), cid]
           };
         }));
       };
 
       return (
        <div className="px-0 sm:px-1 lg:px-2 py-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
-         <header className="flex items-center gap-4">
+         <header className="flex items-center gap-4 px-[10px]">
            <button onClick={() => setSelectedMeetingId(null)} className="p-2 bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-sm border dark:border-gray-700 active:scale-95 transition-all"><ArrowLeft size={20} className="dark:text-white"/></button>
            <div className="flex-1">
              <h2 className="text-xl font-bold dark:text-white font-hindi">{meeting.title}</h2>
@@ -2039,33 +2069,35 @@ const App: React.FC = () => {
            </div>
           )}
 
-         <button 
-             onClick={() => {
-                 setSelectedMeetingId(null);
-                 setSelectedListId(null);
-                 setActiveTab('events');
-             }}
-             className="w-full p-4 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg border border-purple-200 dark:border-purple-800 shadow-sm active:scale-95 transition-all flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3 font-medium font-hindi">
-               <Flag size={20} />
-                विस्तृत कार्यक्रम नियोजन में जाएं
-            </div>
-            <ChevronRight size={20} className="opacity-50 text-purple-400" />
-         </button>
+         <div className="px-[10px]">
+           <button 
+               onClick={() => {
+                   setSelectedMeetingId(null);
+                   setSelectedListId(null);
+                   setActiveTab('events');
+               }}
+               className="w-full p-4 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg border border-purple-200 dark:border-purple-800 shadow-sm active:scale-95 transition-all flex items-center justify-between"
+            >
+              <div className="flex items-center gap-3 font-medium font-hindi">
+                 <Flag size={20} />
+                  विस्तृत कार्यक्रम नियोजन में जाएं
+              </div>
+              <ChevronRight size={20} className="opacity-50 text-purple-400" />
+           </button>
+         </div>
           
          <div className="space-y-6">
            <motion.section initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-20px' }} transition={{ duration: 0.4 }} className="space-y-3">
              <h3 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/30 rounded-md w-fit mb-2 font-hindi">उपस्थिति और प्रतिपुष्टि</h3>
               {listContacts.map(c => {
                 const status = meeting.attendance[c.id] || AttendanceStatus.PENDING;
-                const isPresent = meeting.presentPeopleIds.includes(c.id);
+                const isPresent = (meeting.presentPeopleIds || []).includes(c.id);
                 return (
                  <div key={c.id} className="bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 p-4 rounded-lg border dark:border-gray-700 shadow-sm space-y-4">
                    <div className="flex justify-between items-center">
                      <div className="flex items-center gap-3">
                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-medium ${isPresent ? 'bg-green-500 shadow-lg' : 'bg-gray-400'}`}>
-                          {isPresent ?<UserCheck size={14}/> : c.name[0]}
+                          {isPresent ?<UserCheck size={14}/> : (c.name || '?')[0]}
                        </div>
                        <div>
                          <div className="font-medium dark:text-white text-sm font-hindi">{c.name} ({getVillageName(c.villageId)})</div>
@@ -2117,14 +2149,14 @@ const App: React.FC = () => {
       
       return (
        <div className="px-0 sm:px-1 lg:px-2 py-4 pb-24 space-y-8 animate-in slide-in-from-right duration-300">
-          <header className="flex items-center justify-between">
+          <header className="flex items-center justify-between px-[10px]">
              <div className="flex items-center gap-4">
                <button onClick={() => setSelectedListId(null)} className="p-2 bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-sm border dark:border-gray-700"><ArrowLeft size={20} className="dark:text-white"/></button>
                <h2 className="text-xl font-bold dark:text-white font-hindi">{list.name}</h2>
              </div>
              <div className="flex gap-2">
                <button 
-                  onClick={() => setExportTarget({ data: contacts.filter(c => list.peopleIds.includes(c.id)), title: `सूची_${list.name}` })}
+                  onClick={() => setExportTarget({ data: contacts.filter(c => (list.peopleIds || []).includes(c.id)), title: `सूची_${list.name}` })}
                   className="p-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-md shadow-sm active:scale-95 transition-all"
                 >
                  <Download size={18}/>
@@ -2163,7 +2195,7 @@ const App: React.FC = () => {
                                 {Object.values(m.attendance || {}).filter(v => v === AttendanceStatus.COMING).length} आ रहे
                              </div>
                              <div className="text-[8px] font-medium text-green-600 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded-lg border border-green-100 dark:border-green-900/30 font-hindi">
-                                {m.presentPeopleIds.length} उपस्थित
+                                {(m.presentPeopleIds || []).length} उपस्थित
                              </div>
                              <button 
                                 onClick={(e) => {
@@ -2190,13 +2222,13 @@ const App: React.FC = () => {
              </motion.section>
 
              <motion.section initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-20px' }} transition={{ duration: 0.4 }} className="space-y-4">
-               <h3 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/30 rounded-md w-fit mb-2 font-hindi">सूची के सदस्य ({list.peopleIds.length})</h3>
+               <h3 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/30 rounded-md w-fit mb-2 font-hindi">सूची के सदस्य ({(list.peopleIds || []).length})</h3>
                <div className="space-y-3">
-                  {contacts.filter(c => list.peopleIds.includes(c.id)).map(c => {
+                  {contacts.filter(c => (list.peopleIds || []).includes(c.id)).map(c => {
                     const recentlyCalled = isRecentlyCalled(c.id);
                     return (
                      <div key={c.id} onClick={() => { setSelectedContactId(c.id); }} className="bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 p-4 rounded-md border dark:border-gray-700 flex items-center gap-4 active:scale-95 transition-all shadow-sm">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-medium ${recentlyCalled ? 'bg-orange-500' : 'bg-indigo-500 shadow-lg shadow-indigo-500/20'}`}>{c.name[0]}</div>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-medium ${recentlyCalled ? 'bg-orange-500' : 'bg-indigo-500 shadow-lg shadow-indigo-500/20'}`}>{(c.name || '?')[0]}</div>
                         <div className="flex-1 font-medium dark:text-gray-100 text-sm flex items-center gap-2 font-hindi">
                             {c.name} ({getVillageName(c.villageId)})
                         </div>
@@ -2844,6 +2876,7 @@ const App: React.FC = () => {
          <MenuTab 
             userName={userName} setUserName={setUserName} 
             appUser={appUser}
+            hasPermission={hasPermission}
             setActiveTab={setActiveTab} 
             contacts={contacts}
           />
@@ -3061,9 +3094,9 @@ const App: React.FC = () => {
             setCustomLists(prev => prev.map(l => l.id === selectedListId ? { ...l, peopleIds: newPeopleIds } : l));
             setContacts(prev => prev.map(c => {
                const isInNewList = newPeopleIds.includes(c.id);
-               const hadList = c.listIds.includes(selectedListId);
-               if (isInNewList && !hadList) return { ...c, listIds: [...c.listIds, selectedListId] };
-               if (!isInNewList && hadList) return { ...c, listIds: c.listIds.filter(id => id !== selectedListId) };
+               const hadList = (c.listIds || []).includes(selectedListId);
+               if (isInNewList && !hadList) return { ...c, listIds: [...(c.listIds || []), selectedListId] };
+               if (!isInNewList && hadList) return { ...c, listIds: (c.listIds || []).filter(id => id !== selectedListId) };
                return c;
             }));
             setIsManagingMembers(false);
@@ -3613,7 +3646,7 @@ const ContactProfile = ({ contact, villages, mandals, categories, onDelete, onEd
   const mName = mandals.find((m: any) => m.id === contact.mandalId)?.name || '';
   return (
    <div className="px-0 sm:px-1 lg:px-2 py-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
-     <header className="flex justify-between items-center">
+     <header className="flex justify-between items-center px-[10px]">
        <button onClick={onBack} className="p-3 bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-md shadow-sm border dark:border-gray-700 active:scale-95 transition-all"><ArrowLeft size={20} className="dark:text-white"/></button>
        <div className="flex gap-2">
           <button onClick={onEdit} className="p-3 bg-blue-50 text-blue-600 rounded-md active:scale-95 transition-all"><Edit2 size={20}/></button>
@@ -3621,7 +3654,7 @@ const ContactProfile = ({ contact, villages, mandals, categories, onDelete, onEd
        </div>
      </header>
      <div className="text-center space-y-4">
-        <div className={`w-24 h-24 rounded-full mx-auto flex items-center justify-center text-white text-3xl font-medium shadow-xl ring-4 ring-white dark:ring-gray-800 transition-colors ${isRecentlyCalled ? 'bg-orange-500' : 'bg-blue-600'}`}>{contact.name[0]}</div>
+        <div className={`w-24 h-24 rounded-full mx-auto flex items-center justify-center text-white text-3xl font-medium shadow-xl ring-4 ring-white dark:ring-gray-800 transition-colors ${isRecentlyCalled ? 'bg-orange-500' : 'bg-blue-600'}`}>{(contact.name || '?')[0]}</div>
         <h2 className="text-2xl font-medium dark:text-white font-hindi">{contact.name}</h2>
         <div className="flex items-center justify-center gap-3">
           <a 
@@ -3756,7 +3789,9 @@ const ContactProfile = ({ contact, villages, mandals, categories, onDelete, onEd
             )}
         </div>
      </div>
-     <button onClick={onLogVisit} className="w-full p-4 bg-blue-600 text-white font-medium rounded-xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 abstract-btn"><CheckCircle2 size={18}/> अनुवर्तन दर्ज करें</button>
+     <div className="px-[10px]">
+       <button onClick={onLogVisit} className="w-full p-4 bg-blue-600 text-white font-medium rounded-xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 abstract-btn"><CheckCircle2 size={18}/> अनुवर्तन दर्ज करें</button>
+     </div>
    </div>
   );
 };
@@ -3770,7 +3805,7 @@ const VillageDetail = ({ village, contacts, ideas, onBack, onContactClick, onUpd
 
   return (
    <div className="px-0 sm:px-1 lg:px-2 py-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
-      <header className="flex items-center gap-4">
+      <header className="flex items-center gap-4 px-[10px]">
          <button onClick={onBack} className="p-3 bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-md shadow-sm border dark:border-gray-700 active:scale-95 transition-all"><ArrowLeft size={20} className="dark:text-white"/></button>
          <div className="flex-1 flex justify-between items-center">
             {isEditingName ? (
@@ -3963,7 +3998,7 @@ const VillageDetail = ({ village, contacts, ideas, onBack, onContactClick, onUpd
                ) : (
                  vContacts.map((c: any) => (
                   <div key={c.id} onClick={() => onContactClick(c.id)} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-md border dark:border-gray-700 active:scale-95 transition-all">
-                    <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-full flex items-center justify-center font-medium text-xs">{c.name[0]}</div>
+                    <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-full flex items-center justify-center font-medium text-xs">{(c.name || '?')[0]}</div>
                     <div className="flex-1">
                       <div className="text-xs font-medium dark:text-white flex items-center gap-2">{c.name}</div>
                       <div className="text-[8px] font-medium text-gray-400 uppercase">{c.category} • {c.status}</div>
@@ -4681,7 +4716,7 @@ const TripDetailModal = ({ trip, khands, mandals, villages, contacts, ideas, onB
                                       {item.contactId ? (
                                        <div className="space-y-2 w-full pr-8">
                                            <div className="flex items-center gap-2">
-                                             <div className="w-8 h-8 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/40 dark:to-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-lg flex items-center justify-center font-medium text-xs shadow-sm shrink-0 border border-white dark:border-gray-700/50">{contact?.name[0]}</div>
+                                             <div className="w-8 h-8 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/40 dark:to-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-lg flex items-center justify-center font-medium text-xs shadow-sm shrink-0 border border-white dark:border-gray-700/50">{(contact?.name || '?')[0]}</div>
                                              <div className="flex-1 min-w-[100px] cursor-pointer group/name" onClick={() => onLogVisit(item.contactId)}>
                                                <div className="text-base font-medium dark:text-white group-hover/name:text-blue-500 transition-colors uppercase truncate tracking-tight font-hindi">{contact?.name} ({getVillageName(contact?.villageId)})</div>
                                              </div>
@@ -4863,7 +4898,7 @@ const CatMgmt = ({ categories, setCategories, onBack, setConfirmation, title = "
 
    return (
      <div className="px-0 sm:px-1 lg:px-2 py-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
-        <header className="flex items-center gap-4">
+        <header className="flex items-center gap-4 px-[10px]">
            <button onClick={onBack} className="p-2 bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-sm border dark:border-gray-700 active:scale-90"><ArrowLeft size={20} className="dark:text-white"/></button>
            <h2 className="text-xl font-bold dark:text-white">{title}</h2>
         </header>
@@ -4984,143 +5019,243 @@ const SettingsTab = ({
   whatsappMessage, setWhatsappMessage,
   setActiveTab, 
   exportData, importData, generateVolunteerTemplate, volunteerExcelInputRef, handleImportExcel, resetAllData, clearAllKaryas 
-}: any) => (
- <div className="px-0 sm:px-1 lg:px-2 py-4 pb-24 space-y-6 animate-in slide-in-from-right duration-300">
-    <header className="flex items-center gap-4">
-       <button onClick={() => setActiveTab('menu')} className="p-2 bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-sm border dark:border-gray-700 active:scale-90">
-          <ArrowLeft size={20} className="dark:text-white"/>
-       </button>
-       <h1 className="text-2xl font-bold text-blue-900 dark:text-blue-400 tracking-tight">सेटिंग्स</h1>
-    </header>
+}: any) => {
+  const [expandedSection, setExpandedSection] = useState<string | null>('visual');
 
-    <div className="space-y-4">
-       {/* Visual & Theme Category */}
-      <div>
-        <h2 className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/30 rounded inline-block mb-2 shadow-sm border border-indigo-100 dark:border-indigo-800/30">दिखावट और थीम</h2>
-        <div className="bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-md border dark:border-gray-700 overflow-hidden divide-y dark:divide-gray-700 shadow-sm text-sm">
-          <div className="p-3 flex justify-between items-center bg-gray-50/50 dark:bg-gray-900/20">
-             <div className="flex items-center gap-3 text-indigo-600"><Moon size={18}/><span className="font-medium dark:text-gray-200">डार्क मोड</span></div>
-             <button onClick={()=>setDarkMode(!darkMode)} className={`w-10 h-5 rounded-full relative transition-all ${darkMode?'bg-indigo-600':'bg-gray-300'}`}><div className={`w-3.5 h-3.5 bg-white rounded-full absolute top-0.5 transition-all ${darkMode?'left-6':'left-0.5'}`}/></button>
-          </div>
-           
-          <div className="p-3 space-y-3 border-t dark:border-gray-700">
-             <div className="flex items-center gap-3 text-pink-600"><Palette size={18}/><span className="font-medium dark:text-gray-200">स्टाइल्स एवं थीम</span></div>
-             <div className="grid grid-cols-3 gap-3">
-                <button onClick={()=>setAppTheme('default')} className={`p-2 rounded-sm border flex flex-col items-center gap-1.5 transition-all ${appTheme === 'default' ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-500/20' : 'border-gray-200 dark:border-gray-700'}`}>
-                   <div className="flex gap-1"><div className="w-3 h-3 rounded-full bg-blue-600"/><div className="w-3 h-3 rounded-full bg-orange-500"/></div>
-                   <span className="text-[10px] font-medium dark:text-gray-300">डिफ़ॉल्ट</span>
-                </button>
-                <button onClick={()=>setAppTheme('nature')} className={`p-2 rounded-sm border flex flex-col items-center gap-1.5 transition-all ${appTheme === 'nature' ? 'border-green-600 bg-green-50 dark:bg-green-900/30 ring-2 ring-green-500/20' : 'border-gray-200 dark:border-gray-700'}`}>
-                   <div className="flex gap-1"><div className="w-3 h-3 rounded-full bg-emerald-500"/><div className="w-3 h-3 rounded-full bg-amber-500"/></div>
-                   <span className="text-[10px] font-medium dark:text-gray-300">प्रकृति</span>
-                </button>
-                <button onClick={()=>setAppTheme('rose')} className={`p-2 rounded-sm border flex flex-col items-center gap-1.5 transition-all ${appTheme === 'rose' ? 'border-rose-600 bg-rose-50 dark:bg-rose-900/30 ring-2 ring-rose-500/20' : 'border-gray-200 dark:border-gray-700'}`}>
-                   <div className="flex gap-1"><div className="w-3 h-3 rounded-full bg-rose-600"/><div className="w-3 h-3 rounded-full bg-purple-500"/></div>
-                   <span className="text-[10px] font-medium dark:text-gray-300">रोज़</span>
-                </button>
-                <button onClick={()=>setAppTheme('ocean')} className={`p-2 rounded-sm border flex flex-col items-center gap-1.5 transition-all ${appTheme === 'ocean' ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/30 ring-2 ring-sky-500/20' : 'border-gray-200 dark:border-gray-700'}`}>
-                   <div className="flex gap-1"><div className="w-3 h-3 rounded-full bg-sky-500"/><div className="w-3 h-3 rounded-full bg-cyan-500"/></div>
-                   <span className="text-[10px] font-medium dark:text-gray-300">ओशन</span>
-                </button>
-                <button onClick={()=>setAppTheme('sunset')} className={`p-2 rounded-sm border flex flex-col items-center gap-1.5 transition-all ${appTheme === 'sunset' ? 'border-red-600 bg-red-50 dark:bg-red-900/30 ring-2 ring-red-500/20' : 'border-gray-200 dark:border-gray-700'}`}>
-                   <div className="flex gap-1"><div className="w-3 h-3 rounded-full bg-red-500"/><div className="w-3 h-3 rounded-full bg-orange-400"/></div>
-                   <span className="text-[10px] font-medium dark:text-gray-300">सनसेट</span>
-                </button>
-                <button onClick={()=>setAppTheme('monochrome')} className={`p-2 rounded-sm border flex flex-col items-center gap-1.5 transition-all ${appTheme === 'monochrome' ? 'border-gray-600 bg-gray-100 dark:bg-gray-800 ring-2 ring-gray-400/20' : 'border-gray-200 dark:border-gray-700'}`}>
-                   <div className="flex gap-1"><div className="w-3 h-3 rounded-full bg-slate-600"/><div className="w-3 h-3 rounded-full bg-zinc-500"/></div>
-                   <span className="text-[10px] font-medium dark:text-gray-300">ग्रेस्केल</span>
-                </button>
-             </div>
-          </div>
+  const toggleSection = (section: string) => {
+    setExpandedSection(prev => prev === section ? null : section);
+  };
 
-          <div className="p-3 space-y-3 border-t dark:border-gray-700">
-             <div className="flex items-center gap-3 text-emerald-600"><Type size={18}/><span className="font-medium dark:text-gray-200">फ़ॉन्ट</span></div>
-             <div className="flex overflow-x-auto pb-2 -mx-0 px-0 gap-2 snap-x scrollbar-hide text-xs">
-                <button onClick={()=>setAppFont('baloo')} className={`snap-start shrink-0 px-3 py-1.5 rounded-sm border transition-all ${appFont === 'baloo' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 font-medium' : 'border-gray-200 dark:border-gray-700 dark:text-gray-200 text-gray-700'}`} style={{fontFamily: '"Baloo 2", sans-serif'}}>Baloo</button>
-                <button onClick={()=>setAppFont('tiro')} className={`snap-start shrink-0 px-3 py-1.5 rounded-sm border transition-all ${appFont === 'tiro' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 font-medium' : 'border-gray-200 dark:border-gray-700 dark:text-gray-200 text-gray-700'}`} style={{fontFamily: '"Tiro Devanagari Hindi", serif'}}>Tiro Hindi</button>
-                <button onClick={()=>setAppFont('mukta')} className={`snap-start shrink-0 px-3 py-1.5 rounded-sm border transition-all ${appFont === 'mukta' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 font-medium' : 'border-gray-200 dark:border-gray-700 dark:text-gray-200 text-gray-700'}`} style={{fontFamily: 'Mukta, sans-serif'}}>Mukta</button>
-                <button onClick={()=>setAppFont('noto-sans')} className={`snap-start shrink-0 px-3 py-1.5 rounded-sm border transition-all ${appFont === 'noto-sans' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 font-medium' : 'border-gray-200 dark:border-gray-700 dark:text-gray-200 text-gray-700'}`} style={{fontFamily: '"Noto Sans Devanagari", sans-serif'}}>Noto Sans</button>
-                <button onClick={()=>setAppFont('yatra')} className={`snap-start shrink-0 px-3 py-1.5 rounded-sm border transition-all ${appFont === 'yatra' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 font-medium' : 'border-gray-200 dark:border-gray-700 dark:text-gray-200 text-gray-700'}`} style={{fontFamily: '"Yatra One", sans-serif'}}>Yatra</button>
-                <button onClick={()=>setAppFont('kalam')} className={`snap-start shrink-0 px-3 py-1.5 rounded-sm border transition-all ${appFont === 'kalam' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 font-medium' : 'border-gray-200 dark:border-gray-700 dark:text-gray-200 text-gray-700'}`} style={{fontFamily: 'Kalam, cursive'}}>Kalam</button>
-                <button onClick={()=>setAppFont('amita')} className={`snap-start shrink-0 px-3 py-1.5 rounded-sm border transition-all ${appFont === 'amita' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 font-medium' : 'border-gray-200 dark:border-gray-700 dark:text-gray-200 text-gray-700'}`} style={{fontFamily: 'Amita, cursive'}}>Amita</button>
-                <button onClick={()=>setAppFont('rajdhani')} className={`snap-start shrink-0 px-3 py-1.5 rounded-sm border transition-all ${appFont === 'rajdhani' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 font-medium' : 'border-gray-200 dark:border-gray-700 dark:text-gray-200 text-gray-700'}`} style={{fontFamily: 'Rajdhani, sans-serif'}}>Rajdhani</button>
-                <button onClick={()=>setAppFont('hind')} className={`snap-start shrink-0 px-3 py-1.5 rounded-sm border transition-all ${appFont === 'hind' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 font-medium' : 'border-gray-200 dark:border-gray-700 dark:text-gray-200 text-gray-700'}`} style={{fontFamily: 'Hind, sans-serif'}}>Hind</button>
-                <button onClick={()=>setAppFont('poppins')} className={`snap-start shrink-0 px-3 py-1.5 rounded-sm border transition-all ${appFont === 'poppins' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 font-medium' : 'border-gray-200 dark:border-gray-700 dark:text-gray-200 text-gray-700'}`} style={{fontFamily: 'Poppins, sans-serif'}}>Poppins</button>
-                <button onClick={()=>setAppFont('khula')} className={`snap-start shrink-0 px-3 py-1.5 rounded-sm border transition-all ${appFont === 'khula' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 font-medium' : 'border-gray-200 dark:border-gray-700 dark:text-gray-200 text-gray-700'}`} style={{fontFamily: 'Khula, sans-serif'}}>Khula</button>
-                <button onClick={()=>setAppFont('yantramanav')} className={`snap-start shrink-0 px-3 py-1.5 rounded-sm border transition-all ${appFont === 'yantramanav' ? 'border-emerald-600 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 font-medium' : 'border-gray-200 dark:border-gray-700 dark:text-gray-200 text-gray-700'}`} style={{fontFamily: 'Yantramanav, sans-serif'}}>Yantramanav</button>
-             </div>
-          </div>
+  return (
+    <div className="px-0 sm:px-1 lg:px-2 py-4 pb-24 space-y-4 animate-in slide-in-from-right duration-300">
+      <header className="flex items-center gap-4 px-[10px]">
+         <button onClick={() => setActiveTab('menu')} className="p-2 bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-sm text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-sm border active:scale-90">
+            <ArrowLeft size={20} className="dark:text-white"/>
+         </button>
+         <h1 className="text-2xl font-bold text-blue-900 dark:text-blue-400 tracking-tight">सेटिंग्स</h1>
+      </header>
 
-          <div className="p-3 space-y-3 border-t dark:border-gray-700">
-             <div className="flex items-center gap-3 text-orange-600"><MessageSquare size={18}/><span className="font-medium dark:text-gray-200">टेक्स्ट का आकार</span></div>
-             <div className="flex items-center justify-between gap-1 bg-gray-100/50 dark:bg-gray-800/50 p-1 rounded-lg border dark:border-gray-700">
-                <button onClick={()=>setAppFontSize(14)} className={`flex-1 py-1.5 text-xs rounded transition-all ${appFontSize === 14 ? 'bg-white dark:bg-gray-700 shadow-sm text-orange-600 font-medium' : 'text-gray-500 font-medium'}`}>छोटा</button>
-                <button onClick={()=>setAppFontSize(16)} className={`flex-1 py-1.5 text-xs rounded transition-all ${appFontSize === 16 ? 'bg-white dark:bg-gray-700 shadow-sm text-orange-600 font-medium' : 'text-gray-500 font-medium'}`}>सामान्य</button>
-                <button onClick={()=>setAppFontSize(18)} className={`flex-1 py-1.5 text-xs rounded transition-all ${appFontSize === 18 ? 'bg-white dark:bg-gray-700 shadow-sm text-orange-600 font-medium' : 'text-gray-500 font-medium'}`}>बड़ा</button>
-                <button onClick={()=>setAppFontSize(20)} className={`flex-1 py-1.5 text-xs rounded transition-all ${appFontSize === 20 ? 'bg-white dark:bg-gray-700 shadow-sm text-orange-600 font-medium' : 'text-gray-500 font-medium'}`}>विशाल</button>
-             </div>
-          </div>
-        </div>
-      </div>
+      <div className="space-y-4 px-[10px]">
+         {/* Visual & Theme Category */}
+         <div className="bg-white/60 dark:bg-[#080d19]/60 backdrop-blur-2xl border border-white/50 dark:border-gray-800 shadow-sm text-gray-800 dark:text-gray-100 rounded-2xl overflow-hidden text-sm">
+            <button 
+              onClick={() => toggleSection('visual')}
+              className="w-full p-4 flex items-center justify-between transition-colors active:bg-gray-50 dark:active:bg-gray-800"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl text-indigo-600 dark:text-indigo-400">
+                  <Palette size={20} />
+                </div>
+                <div className="text-left leading-tight">
+                  <h2 className="font-bold text-gray-900 dark:text-gray-100 font-hindi">दिखावट और थीम</h2>
+                  <p className="text-[10px] text-gray-500 font-hindi">डार्क मोड, थीम, फ़ॉन्ट</p>
+                </div>
+              </div>
+              <ChevronDown size={18} className={`text-gray-400 transition-transform duration-300 ${expandedSection === 'visual' ? 'rotate-180' : ''}`} />
+            </button>
+            <AnimatePresence>
+              {expandedSection === 'visual' && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="p-4 space-y-6 border-t border-gray-100 dark:border-gray-800 bg-white/20 dark:bg-black/10">
+                     <div className="flex justify-between items-center bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
+                        <div className="flex items-center gap-3 text-indigo-600 dark:text-indigo-400"><Moon size={18}/><span className="font-semibold text-gray-900 dark:text-gray-100 font-hindi text-sm">डार्क मोड</span></div>
+                        <button onClick={()=>setDarkMode(!darkMode)} className={`w-12 h-6 rounded-full relative transition-all shadow-inner ${darkMode?'bg-indigo-600':'bg-gray-300 dark:bg-gray-600'}`}><div className={`w-4 h-4 bg-white rounded-full absolute top-[4px] transition-all shadow-sm ${darkMode?'left-[26px]':'left-1'}`}/></button>
+                     </div>
+                     
+                     <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-pink-600 dark:text-pink-400 text-xs uppercase tracking-widest font-bold"><Palette size={14}/><span className="font-hindi">स्टाइल्स एवं थीम</span></div>
+                        <div className="grid grid-cols-3 gap-2">
+                           <button onClick={()=>setAppTheme('default')} className={`p-2.5 rounded-xl flex flex-col items-center gap-2 transition-all ${appTheme === 'default' ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 border-2' : 'hover:bg-gray-50 dark:hover:bg-gray-800 border border-gray-100 dark:border-gray-800'}`}>
+                              <div className="flex gap-1"><div className="w-3.5 h-3.5 rounded-full bg-blue-600 shadow-sm"/><div className="w-3.5 h-3.5 rounded-full bg-orange-500 shadow-sm"/></div>
+                              <span className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 font-hindi">डिफ़ॉल्ट</span>
+                           </button>
+                           <button onClick={()=>setAppTheme('nature')} className={`p-2.5 rounded-xl flex flex-col items-center gap-2 transition-all ${appTheme === 'nature' ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800 border-2' : 'hover:bg-gray-50 dark:hover:bg-gray-800 border border-gray-100 dark:border-gray-800'}`}>
+                              <div className="flex gap-1"><div className="w-3.5 h-3.5 rounded-full bg-emerald-500 shadow-sm"/><div className="w-3.5 h-3.5 rounded-full bg-amber-500 shadow-sm"/></div>
+                              <span className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 font-hindi">प्रकृति</span>
+                           </button>
+                           <button onClick={()=>setAppTheme('rose')} className={`p-2.5 rounded-xl flex flex-col items-center gap-2 transition-all ${appTheme === 'rose' ? 'bg-rose-50 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800 border-2' : 'hover:bg-gray-50 dark:hover:bg-gray-800 border border-gray-100 dark:border-gray-800'}`}>
+                              <div className="flex gap-1"><div className="w-3.5 h-3.5 rounded-full bg-rose-600 shadow-sm"/><div className="w-3.5 h-3.5 rounded-full bg-purple-500 shadow-sm"/></div>
+                              <span className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 font-hindi">रोज़</span>
+                           </button>
+                           <button onClick={()=>setAppTheme('ocean')} className={`p-2.5 rounded-xl flex flex-col items-center gap-2 transition-all ${appTheme === 'ocean' ? 'bg-sky-50 dark:bg-sky-900/30 border-sky-200 dark:border-sky-800 border-2' : 'hover:bg-gray-50 dark:hover:bg-gray-800 border border-gray-100 dark:border-gray-800'}`}>
+                              <div className="flex gap-1"><div className="w-3.5 h-3.5 rounded-full bg-sky-500 shadow-sm"/><div className="w-3.5 h-3.5 rounded-full bg-cyan-500 shadow-sm"/></div>
+                              <span className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 font-hindi">ओशन</span>
+                           </button>
+                           <button onClick={()=>setAppTheme('sunset')} className={`p-2.5 rounded-xl flex flex-col items-center gap-2 transition-all ${appTheme === 'sunset' ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800 border-2' : 'hover:bg-gray-50 dark:hover:bg-gray-800 border border-gray-100 dark:border-gray-800'}`}>
+                              <div className="flex gap-1"><div className="w-3.5 h-3.5 rounded-full bg-red-500 shadow-sm"/><div className="w-3.5 h-3.5 rounded-full bg-orange-400 shadow-sm"/></div>
+                              <span className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 font-hindi">सनसेट</span>
+                           </button>
+                           <button onClick={()=>setAppTheme('monochrome')} className={`p-2.5 rounded-xl flex flex-col items-center gap-2 transition-all ${appTheme === 'monochrome' ? 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 border-2' : 'hover:bg-gray-50 dark:hover:bg-gray-800 border border-gray-100 dark:border-gray-800'}`}>
+                              <div className="flex gap-1"><div className="w-3.5 h-3.5 rounded-full bg-slate-600 shadow-sm"/><div className="w-3.5 h-3.5 rounded-full bg-zinc-500 shadow-sm"/></div>
+                              <span className="text-[10px] font-semibold text-gray-700 dark:text-gray-300 font-hindi">ग्रेस्केल</span>
+                           </button>
+                        </div>
+                     </div>
 
-       {/* App Preferences Category */}
-      <div>
-        <h2 className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/30 rounded inline-block mb-2 shadow-sm border border-indigo-100 dark:border-indigo-800/30">प्राथमिकताएं</h2>
-        <div className="bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-md border dark:border-gray-700 overflow-hidden divide-y dark:divide-gray-700 shadow-sm text-sm">
-          <div className="p-3 space-y-2">
-            <div className="flex items-center gap-3 text-[#25D366]"><WhatsappIcon size={18}/><span className="font-medium dark:text-gray-200">WhatsApp संदेश</span></div>
-            <textarea rows={3} value={whatsappMessage}
-               onChange={(e) => setWhatsappMessage(e.target.value)}
-               placeholder="डिफ़ॉल्ट संदेश..."
-               className="w-full p-2 bg-white/30 dark:bg-[#080d19]/50 backdrop-blur-2xl border border-white/40 border-t-white/70 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] text-gray-800 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 dark:border-gray-700/50 rounded flex outline-none font-medium text-xs resize-none"
-             ></textarea>
-          </div>
-           
-          <button onClick={()=>setActiveTab('cat-mgmt')} className="w-full p-3 flex justify-between items-center active:bg-gray-50 dark:active:bg-gray-900/40 transition-all border-t dark:border-gray-700">
-            <div className="flex items-center gap-3 text-orange-600"><Tag size={18}/><span className="font-medium dark:text-gray-200">संपर्क श्रेणी प्रबंधन</span></div>
-            <ChevronRight size={16} className="text-gray-400"/>
-          </button>
-          <button onClick={()=>setActiveTab('event-cat-mgmt')} className="w-full p-3 flex justify-between items-center active:bg-gray-50 dark:active:bg-gray-900/40 transition-all border-t dark:border-gray-700">
-            <div className="flex items-center gap-3 text-purple-600"><Flag size={18}/><span className="font-medium dark:text-gray-200">कार्यक्रम श्रेणी प्रबंधन</span></div>
-            <ChevronRight size={16} className="text-gray-400"/>
-          </button>
-          <button onClick={()=>setActiveTab('list-cat-mgmt')} className="w-full p-3 flex justify-between items-center active:bg-gray-50 dark:active:bg-gray-900/40 transition-all border-t dark:border-gray-700">
-            <div className="flex items-center gap-3 text-indigo-600"><Layers size={18}/><span className="font-medium dark:text-gray-200 font-hindi">सूची श्रेणी प्रबंधन</span></div>
-            <ChevronRight size={16} className="text-gray-400"/>
-          </button>
-        </div>
-      </div>
+                     <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-xs uppercase tracking-widest font-bold"><Type size={14}/><span className="font-hindi">फ़ॉन्ट</span></div>
+                        <div className="grid grid-cols-3 gap-2">
+                           <button onClick={()=>setAppFont('baloo')} className={`px-2 py-3 rounded-xl border-2 transition-all flex items-center justify-center ${appFont === 'baloo' ? 'border-emerald-500 bg-emerald-50 shadow-sm text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' : 'border-transparent bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm'}`} style={{fontFamily: '"Baloo 2", sans-serif'}}><span className="text-sm">Baloo</span></button>
+                           <button onClick={()=>setAppFont('tiro')} className={`px-2 py-3 rounded-xl border-2 transition-all flex items-center justify-center ${appFont === 'tiro' ? 'border-emerald-500 bg-emerald-50 shadow-sm text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' : 'border-transparent bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm'}`} style={{fontFamily: '"Tiro Devanagari Hindi", serif'}}><span className="text-sm">Tiro</span></button>
+                           <button onClick={()=>setAppFont('mukta')} className={`px-2 py-3 rounded-xl border-2 transition-all flex items-center justify-center ${appFont === 'mukta' ? 'border-emerald-500 bg-emerald-50 shadow-sm text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' : 'border-transparent bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm'}`} style={{fontFamily: 'Mukta, sans-serif'}}><span className="text-sm">Mukta</span></button>
+                           <button onClick={()=>setAppFont('noto-sans')} className={`px-2 py-3 rounded-xl border-2 transition-all flex items-center justify-center ${appFont === 'noto-sans' ? 'border-emerald-500 bg-emerald-50 shadow-sm text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' : 'border-transparent bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm'}`} style={{fontFamily: '"Noto Sans Devanagari", sans-serif'}}><span className="text-sm text-center">Noto Sans</span></button>
+                           <button onClick={()=>setAppFont('yatra')} className={`px-2 py-3 rounded-xl border-2 transition-all flex items-center justify-center ${appFont === 'yatra' ? 'border-emerald-500 bg-emerald-50 shadow-sm text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' : 'border-transparent bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm'}`} style={{fontFamily: '"Yatra One", sans-serif'}}><span className="text-sm">Yatra</span></button>
+                           <button onClick={()=>setAppFont('kalam')} className={`px-2 py-3 rounded-xl border-2 transition-all flex items-center justify-center ${appFont === 'kalam' ? 'border-emerald-500 bg-emerald-50 shadow-sm text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' : 'border-transparent bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm'}`} style={{fontFamily: 'Kalam, cursive'}}><span className="text-sm">Kalam</span></button>
+                        </div>
+                     </div>
 
-       {/* Data & Backup Category */}
-      <div>
-        <h2 className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/30 rounded inline-block mb-2 shadow-sm border border-indigo-100 dark:border-indigo-800/30">डेटा और सिस्टम</h2>
-        <div className="bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-md border dark:border-gray-700 overflow-hidden divide-y dark:divide-gray-700 shadow-sm text-sm">
-          <button onClick={exportData} className="w-full p-3 flex justify-between items-center active:bg-gray-50 dark:active:bg-gray-900/40"><div className="flex items-center gap-3 text-green-600"><Download size={18}/><span className="font-medium dark:text-gray-200">बैकअप (JSON)</span></div></button>
-          <button onClick={importData} className="w-full p-3 flex justify-between items-center active:bg-gray-50 dark:active:bg-gray-900/40 border-t dark:border-gray-700"><div className="flex items-center gap-3 text-blue-600"><Upload size={18}/><span className="font-medium dark:text-gray-200">डेटा रिस्टोर</span></div></button>
-          <button onClick={clearAllKaryas} className="w-full p-3 flex justify-between items-center text-orange-600 active:bg-orange-50 dark:active:bg-orange-900/10 transition-all border-t dark:border-gray-700"><div className="flex items-center gap-3"><Trash2 size={18}/><span className="font-medium">सभी शाखा/मिलन हटाएं</span></div></button>
-          <button onClick={resetAllData} className="w-full p-3 flex justify-between items-center text-red-600 active:bg-red-50 dark:active:bg-red-900/10 transition-all border-t dark:border-gray-700"><div className="flex items-center gap-3"><RotateCcw size={18}/><span className="font-medium">ऐप रिसेट करें</span></div></button>
-        </div>
-      </div>
+                     <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400 text-xs uppercase tracking-widest font-bold"><MessageSquare size={14}/><span className="font-hindi">टेक्स्ट का आकार</span></div>
+                        <div className="flex items-center justify-between gap-2 bg-gray-50/50 dark:bg-gray-800/50 p-2 rounded-xl border border-gray-100 dark:border-gray-700/50">
+                           <button onClick={()=>setAppFontSize(14)} className={`flex-1 py-2 text-xs rounded-lg transition-all ${appFontSize === 14 ? 'bg-white dark:bg-gray-700 shadow border dark:border-gray-600 text-orange-600 dark:text-orange-400 font-bold' : 'text-gray-600 dark:text-gray-400 font-medium hover:bg-gray-200/50 dark:hover:bg-gray-700/50 block font-hindi'}`}>छोटा</button>
+                           <button onClick={()=>setAppFontSize(16)} className={`flex-1 py-2 text-xs rounded-lg transition-all ${appFontSize === 16 ? 'bg-white dark:bg-gray-700 shadow border dark:border-gray-600 text-orange-600 dark:text-orange-400 font-bold' : 'text-gray-600 dark:text-gray-400 font-medium hover:bg-gray-200/50 dark:hover:bg-gray-700/50 block font-hindi'}`}>सामान्य</button>
+                           <button onClick={()=>setAppFontSize(18)} className={`flex-1 py-2 text-xs rounded-lg transition-all ${appFontSize === 18 ? 'bg-white dark:bg-gray-700 shadow border dark:border-gray-600 text-orange-600 dark:text-orange-400 font-bold' : 'text-gray-600 dark:text-gray-400 font-medium hover:bg-gray-200/50 dark:hover:bg-gray-700/50 block font-hindi'}`}>बड़ा</button>
+                           <button onClick={()=>setAppFontSize(20)} className={`flex-1 py-2 text-xs rounded-lg transition-all ${appFontSize === 20 ? 'bg-white dark:bg-gray-700 shadow border dark:border-gray-600 text-orange-600 dark:text-orange-400 font-bold' : 'text-gray-600 dark:text-gray-400 font-medium hover:bg-gray-200/50 dark:hover:bg-gray-700/50 block font-hindi'}`}>विशाल</button>
+                        </div>
+                     </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+         </div>
 
-      {/* Volunteer Data Management Category */}
-      <div>
-        <h2 className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/30 rounded inline-block mb-2 shadow-sm border border-indigo-100 dark:border-indigo-800/30">स्वयंसेवक डेटा आयात</h2>
-        <div className="bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border border-white/50 border-t-white/80 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_0_0_1px_rgba(255,255,255,0.2)] text-gray-800 dark:text-gray-100 dark:border-gray-700/50 rounded-md border dark:border-gray-700 overflow-hidden divide-y dark:divide-gray-700 shadow-sm text-sm">
-          <button onClick={generateVolunteerTemplate} className="w-full p-3 flex justify-between items-center active:bg-gray-50 dark:active:bg-gray-900/40 transition-all">
-            <div className="flex items-center gap-3 text-green-600"><FileText size={18}/><span className="font-medium dark:text-gray-200">टेम्पलेट डाउनलोड करें</span></div>
-            <ChevronRight size={16} className="text-gray-400"/>
-          </button>
-          <button onClick={() => volunteerExcelInputRef.current?.click()} className="w-full p-3 flex justify-between items-center active:bg-gray-50 dark:active:bg-gray-900/40 border-t dark:border-gray-700 transition-all">
-            <div className="flex items-center gap-3 text-blue-600"><Upload size={18}/><span className="font-medium dark:text-gray-200">एक्सेल डेटा इम्पोर्ट करें</span></div>
-            <ChevronRight size={16} className="text-gray-400"/>
-          </button>
-          <input type="file" ref={volunteerExcelInputRef} onChange={handleImportExcel} accept=".xlsx, .xls" className="hidden" />
-        </div>
-        <p className="p-2 text-[10px] text-gray-500 font-medium italic">नया डेटा जोड़ने के लिए एक्सेल टेम्पलेट का उपयोग करें।</p>
+         {/* General Options Category */}
+         <div className="bg-white/60 dark:bg-[#080d19]/60 backdrop-blur-2xl border border-white/50 dark:border-gray-800 shadow-sm text-gray-800 dark:text-gray-100 rounded-2xl overflow-hidden text-sm">
+            <button 
+              onClick={() => toggleSection('preferences')}
+              className="w-full p-4 flex items-center justify-between transition-colors active:bg-gray-50 dark:active:bg-gray-800"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-pink-100 dark:bg-pink-900/30 rounded-xl text-pink-600 dark:text-pink-400">
+                  <Settings size={20} />
+                </div>
+                <div className="text-left leading-tight">
+                  <h2 className="font-bold text-gray-900 dark:text-gray-100 font-hindi">प्राथमिकताएं और श्रेणियां</h2>
+                  <p className="text-[10px] text-gray-500 font-hindi">व्हाट्सएप, संपर्क, सूची श्रेणियां</p>
+                </div>
+              </div>
+              <ChevronDown size={18} className={`text-gray-400 transition-transform duration-300 ${expandedSection === 'preferences' ? 'rotate-180' : ''}`} />
+            </button>
+            <AnimatePresence>
+              {expandedSection === 'preferences' && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="p-4 space-y-4 border-t border-gray-100 dark:border-gray-800 bg-white/20 dark:bg-black/10">
+                     <div className="space-y-2">
+                       <div className="flex items-center gap-2 text-[#25D366] text-xs uppercase tracking-widest font-bold"><WhatsappIcon size={14}/><span className="font-hindi">WhatsApp संदेश</span></div>
+                       <textarea rows={3} value={whatsappMessage}
+                          onChange={(e) => setWhatsappMessage(e.target.value)}
+                          placeholder="डिफ़ॉल्ट संदेश..."
+                          className="w-full p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-inner text-gray-800 dark:text-gray-100 placeholder:text-gray-400 rounded-xl outline-none focus:ring-2 focus:ring-[#25D366]/50 font-medium text-sm resize-none transition-all font-hindi"
+                        ></textarea>
+                     </div>
+                     <div className="grid grid-cols-1 gap-2 pt-2">
+                        <button onClick={()=>setActiveTab('cat-mgmt')} className="p-4 bg-white dark:bg-gray-800 active:bg-gray-50 dark:active:bg-gray-700 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-between transition-all group">
+                          <div className="flex items-center gap-3 text-orange-600 dark:text-orange-400"><Tag size={18}/><span className="font-semibold text-sm text-gray-800 dark:text-gray-200 font-hindi">संपर्क श्रेणी प्रबंधन</span></div>
+                          <ChevronRight size={16} className="text-gray-400"/>
+                        </button>
+                        <button onClick={()=>setActiveTab('event-cat-mgmt')} className="p-4 bg-white dark:bg-gray-800 active:bg-gray-50 dark:active:bg-gray-700 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-between transition-all group">
+                          <div className="flex items-center gap-3 text-purple-600 dark:text-purple-400"><Flag size={18}/><span className="font-semibold text-sm text-gray-800 dark:text-gray-200 font-hindi">कार्यक्रम श्रेणी प्रबंधन</span></div>
+                          <ChevronRight size={16} className="text-gray-400"/>
+                        </button>
+                        <button onClick={()=>setActiveTab('list-cat-mgmt')} className="p-4 bg-white dark:bg-gray-800 active:bg-gray-50 dark:active:bg-gray-700 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-between transition-all group">
+                          <div className="flex items-center gap-3 text-indigo-600 dark:text-indigo-400"><Layers size={18}/><span className="font-semibold text-sm text-gray-800 dark:text-gray-200 font-hindi">सूची श्रेणी प्रबंधन</span></div>
+                          <ChevronRight size={16} className="text-gray-400"/>
+                        </button>
+                     </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+         </div>
+
+         {/* System Option Category */}
+         <div className="bg-white/60 dark:bg-[#080d19]/60 backdrop-blur-2xl border border-white/50 dark:border-gray-800 shadow-sm text-gray-800 dark:text-gray-100 rounded-2xl overflow-hidden text-sm">
+            <button 
+              onClick={() => toggleSection('system')}
+              className="w-full p-4 flex items-center justify-between transition-colors active:bg-gray-50 dark:active:bg-gray-800"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl text-emerald-600 dark:text-emerald-400">
+                  <RotateCcw size={20} />
+                </div>
+                <div className="text-left leading-tight">
+                  <h2 className="font-bold text-gray-900 dark:text-gray-100 font-hindi">सिस्टम और डेटा</h2>
+                  <p className="text-[10px] text-gray-500 font-hindi">बैकअप, एक्सेल निर्यात, डेटा रीसेट</p>
+                </div>
+              </div>
+              <ChevronDown size={18} className={`text-gray-400 transition-transform duration-300 ${expandedSection === 'system' ? 'rotate-180' : ''}`} />
+            </button>
+            <AnimatePresence>
+              {expandedSection === 'system' && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="p-4 space-y-5 border-t border-gray-100 dark:border-gray-800 bg-white/20 dark:bg-black/10">
+                     <div className="space-y-3">
+                       <h3 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest px-1 font-hindi">आयात और निर्यात</h3>
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                         <button onClick={exportData} className="p-3.5 bg-white dark:bg-gray-800 active:bg-gray-50 dark:active:bg-gray-700 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center gap-3 transition-all">
+                           <div className="p-2 bg-green-100 dark:bg-green-900/40 text-green-600 rounded-lg"><Download size={18}/></div>
+                           <span className="font-semibold text-sm text-gray-800 dark:text-gray-200 font-hindi">बैकअप (JSON)</span>
+                         </button>
+                         <button onClick={importData} className="p-3.5 bg-white dark:bg-gray-800 active:bg-gray-50 dark:active:bg-gray-700 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center gap-3 transition-all">
+                           <div className="p-2 bg-blue-100 dark:bg-blue-900/40 text-blue-600 rounded-lg"><Upload size={18}/></div>
+                           <span className="font-semibold text-sm text-gray-800 dark:text-gray-200 font-hindi">डेटा रिस्टोर</span>
+                         </button>
+                         <button onClick={generateVolunteerTemplate} className="p-3.5 bg-white dark:bg-gray-800 active:bg-gray-50 dark:active:bg-gray-700 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center gap-3 transition-all">
+                           <div className="p-2 bg-teal-100 dark:bg-teal-900/40 text-teal-600 rounded-lg"><FileText size={18}/></div>
+                           <div className="text-left flex-1">
+                             <div className="font-semibold text-sm text-gray-800 dark:text-gray-200 font-hindi">टेम्पलेट डाउनलोड</div>
+                             <div className="text-[10px] text-gray-500 font-hindi">संपर्क डेटा के लिए एक्सेल</div>
+                           </div>
+                         </button>
+                         <button onClick={() => volunteerExcelInputRef.current?.click()} className="p-3.5 bg-white dark:bg-gray-800 active:bg-gray-50 dark:active:bg-gray-700 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center gap-3 transition-all">
+                           <div className="p-2 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 rounded-lg"><Upload size={18}/></div>
+                           <div className="text-left flex-1">
+                             <div className="font-semibold text-sm text-gray-800 dark:text-gray-200 font-hindi">एक्सेल डेटा इम्पोर्ट</div>
+                             <div className="text-[10px] text-gray-500 font-hindi">संपर्क जोड़ने के लिए</div>
+                           </div>
+                         </button>
+                         <input type="file" ref={volunteerExcelInputRef} onChange={handleImportExcel} accept=".xlsx, .xls" className="hidden" />
+                       </div>
+                     </div>
+
+                     <div className="space-y-3 pt-2">
+                       <h3 className="text-xs font-bold text-red-500 uppercase tracking-widest px-1 font-hindi flex items-center gap-2"><Trash2 size={12}/> खतरनाक क्षेत्र (Danger Zone)</h3>
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <button onClick={clearAllKaryas} className="p-4 bg-red-50 dark:bg-red-900/10 active:bg-red-100 dark:active:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-900/30 flex items-center justify-between transition-all text-red-600 group">
+                            <span className="font-semibold text-sm font-hindi">सभी शाखा/मिलन हटाएं</span>
+                            <Trash2 size={16} className="group-active:scale-90 transition-transform"/>
+                          </button>
+                          <button onClick={resetAllData} className="p-4 bg-red-50 dark:bg-red-900/10 active:bg-red-100 dark:active:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-900/30 flex items-center justify-between transition-all text-red-600 group">
+                            <span className="font-semibold text-sm font-hindi">पूर्ण ऐप रिसेट करें</span>
+                            <RotateCcw size={16} className="group-active:scale-90 transition-transform"/>
+                          </button>
+                       </div>
+                     </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+         </div>
+
       </div>
     </div>
- </div>
-);
+  );
+};
 
 const Ripple = ({ x, y, onComplete }: { x: number; y: number; onComplete: () => void }) => (
   <motion.span
@@ -5145,7 +5280,7 @@ const GridMenuItem = ({ icon: Icon, label, color, onClick, delay = 0, variant = 
 
   const getVariantStyles = () => {
     switch(variant) {
-      case 'wide': return "col-span-2 aspect-[2.5/1]";
+      case 'wide': return "col-span-2 aspect-[2.1/1]";
       default: return "col-span-1 aspect-square";
     }
   };
@@ -5186,16 +5321,16 @@ const GridMenuItem = ({ icon: Icon, label, color, onClick, delay = 0, variant = 
   );
 };
 
-const MenuTab = ({ userName, setUserName, appUser, setActiveTab, contacts = [] }: any) => {
+const MenuTab = ({ userName, setUserName, appUser, hasPermission, setActiveTab, contacts = [] }: any) => {
   const linkedContact = appUser?.linkedContactId ? contacts?.find((c: any) => c.id === appUser.linkedContactId) : null;
   const displayRole = linkedContact?.volunteerProfile?.currentResponsibility 
     ? linkedContact.volunteerProfile.currentResponsibility 
     : (appUser ? (appUser.roleId ? 'Swayamsevak' : 'No Role Assigned') : 'Guest');
 
   return (
-    <div className="flex flex-col h-full bg-[#f8fafc] dark:bg-[#020617] overflow-hidden">
+    <div className="flex flex-col py-4 pb-24 animate-in fade-in duration-300">
       {/* Compact Static Header */}
-      <div className="bg-white dark:bg-[#0f172a] border-b border-gray-200 dark:border-gray-800 shadow-sm shrink-0 sticky top-0 z-30 pt-4 pb-4 px-[18px] sm:px-[26px] -mx-[10px]">
+      <div className="bg-slate-50/95 dark:bg-[#070b14]/95 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 shadow-sm shrink-0 sticky top-0 z-30 pt-4 pb-4 px-4 sm:px-6 -mt-4 sm:-mt-6 lg:-mt-8 -mx-[10px] mb-4">
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -5233,8 +5368,8 @@ const MenuTab = ({ userName, setUserName, appUser, setActiveTab, contacts = [] }
       </div>
 
       {/* Grid Optimized for mobile scrolling */}
-      <div className="p-4 flex-1 overflow-y-auto flex flex-col no-scrollbar">
-        <div className="grid grid-cols-3 gap-3">
+      <div className="p-3 flex-1 overflow-y-hidden flex flex-col no-scrollbar">
+        <div className="grid grid-cols-4 gap-2 pb-2">
           <GridMenuItem 
             delay={0}
             icon={CalendarIcon} 
@@ -5242,78 +5377,93 @@ const MenuTab = ({ userName, setUserName, appUser, setActiveTab, contacts = [] }
             color="bg-rose-500 text-white"
             onClick={() => setActiveTab('events')} 
           />
-          <GridMenuItem 
-            delay={1}
-            icon={ListIcon} 
-            label="समूह" 
-            color="bg-indigo-500 text-white"
-            onClick={() => setActiveTab('lists')} 
-          />
-          <GridMenuItem 
-            delay={2}
-            icon={Rocket} 
-            label="प्रवास" 
-            color="bg-orange-500 text-white"
-            onClick={() => setActiveTab('trips')} 
-          />
-          <GridMenuItem 
-            delay={3}
-            icon={Building2} 
-            label="संगठन" 
-            color="bg-blue-600 text-white"
-            onClick={() => setActiveTab('work-status')} 
-          />
-          <GridMenuItem 
-            delay={4}
-            icon={MapPin} 
-            label="क्षेत्रीय" 
-            color="bg-emerald-600 text-white"
-            onClick={() => setActiveTab('area-mgmt')} 
-          />
-          <GridMenuItem 
-            delay={5}
-            icon={Lightbulb} 
-            label="विजन" 
-            color="bg-purple-600 text-white"
-            onClick={() => setActiveTab('ideas')} 
-          />
+          {hasPermission('manage_contacts') && (
+            <GridMenuItem 
+              delay={1}
+              icon={ListIcon} 
+              label="समूह" 
+              color="bg-indigo-500 text-white"
+              onClick={() => setActiveTab('lists')} 
+            />
+          )}
+          {hasPermission('manage_events') && (
+            <GridMenuItem 
+              delay={2}
+              icon={Rocket} 
+              label="प्रवास" 
+              color="bg-orange-500 text-white"
+              onClick={() => setActiveTab('trips')} 
+            />
+          )}
+          {hasPermission('view_reports') && (
+            <GridMenuItem 
+              delay={3}
+              icon={Building2} 
+              label="संगठन" 
+              color="bg-blue-600 text-white"
+              onClick={() => setActiveTab('work-status')} 
+            />
+          )}
+          {hasPermission('manage_areas') && (
+            <GridMenuItem 
+              delay={4}
+              icon={MapPin} 
+              label="क्षेत्रीय" 
+              color="bg-emerald-600 text-white"
+              onClick={() => setActiveTab('area-mgmt')} 
+            />
+          )}
+          {hasPermission('manage_ideas') && (
+            <GridMenuItem 
+              delay={5}
+              icon={Lightbulb} 
+              label="विजन" 
+              color="bg-purple-600 text-white"
+              onClick={() => setActiveTab('ideas')} 
+            />
+          )}
           
           <GridMenuItem 
             variant="wide"
             delay={5.5}
             icon={MessageSquare} 
-            label="संदेश (Messages)" 
+            label="संदेश" 
             color="bg-teal-500 text-white"
             onClick={() => setActiveTab('messages')} 
           />
-          <GridMenuItem 
-            variant="wide"
-            delay={6}
-            icon={FileText} 
-            label="रिपोर्ट्स एवं डेटा" 
-            color="bg-pink-600 text-white"
-            onClick={() => setActiveTab('reports')} 
-          />
+          {hasPermission('view_reports') && (
+            <GridMenuItem 
+              variant="wide"
+              delay={6}
+              icon={FileText} 
+              label="रिपोर्ट्स व डेटा" 
+              color="bg-pink-600 text-white"
+              onClick={() => setActiveTab('reports')} 
+            />
+          )}
           
-          <GridMenuItem 
-            variant="wide"
-            delay={7}
-            icon={Settings} 
-            label="सेटिंग्स" 
-            color="bg-slate-700 text-white"
-            onClick={() => setActiveTab('settings')} 
-          />
-          <GridMenuItem 
-            variant="wide"
-            delay={8}
-            icon={ShieldCheck} 
-            label="एडमिन व अधिकार" 
-            color="bg-blue-800 text-white"
-            onClick={() => setActiveTab('admin')} 
-          />
+          {(hasPermission('manage_users') || hasPermission('manage_roles')) && (
+            <GridMenuItem 
+              delay={7}
+              icon={Settings} 
+              label="सेटिंग्स" 
+              color="bg-slate-700 text-white"
+              onClick={() => setActiveTab('settings')} 
+            />
+          )}
+          
+          {(hasPermission('manage_users') || hasPermission('manage_roles')) && (
+            <GridMenuItem 
+              delay={8}
+              icon={ShieldCheck} 
+              label="एडमिन" 
+              color="bg-blue-800 text-white"
+              onClick={() => setActiveTab('admin')} 
+            />
+          )}
         </div>
 
-        <div className="mt-auto flex flex-col items-center gap-1 opacity-20 py-4">
+        <div className="mt-auto flex flex-col items-center gap-1 opacity-20 py-2">
           <p className="text-[8px] font-black text-gray-500 uppercase tracking-[0.3em]">स्मार्ट डैशबोर्ड सिस्टम</p>
         </div>
       </div>
@@ -5353,7 +5503,7 @@ const MeetingFormModal = ({ onClose, onSubmit, eventCategories, ideas, customLis
     if (!selectedListId) return [];
     const list = customLists.find((l: any) => l.id === selectedListId);
     if (!list) return [];
-    return ideas.filter((idea: Idea) => !idea.isCompleted && idea.contactId && list.peopleIds.includes(idea.contactId));
+    return ideas.filter((idea: Idea) => !idea.isCompleted && idea.contactId && (list.peopleIds || []).includes(idea.contactId));
   }, [selectedListId, customLists, ideas]);
   
   return (
@@ -5458,14 +5608,14 @@ const VisitLogModal = ({ contactName, initialNotes, initialDate, onClose, onSubm
 };
 
 const ManageListMembersModal = ({ list, contacts, khands, mandals, villages, onClose, onSave }: any) => {
-  const [selectedIds, setSelectedIds] = useState<string[]>(list.peopleIds);
+  const [selectedIds, setSelectedIds] = useState<string[]>(list.peopleIds || []);
   const [search, setSearch] = useState('');
   const [khandFilter, setKhandFilter] = useState('all');
   const [mandalFilter, setMandalFilter] = useState('all');
   const [villageFilter, setVillageFilter] = useState('all');
 
   const filtered = contacts.filter((c: any) => {
-    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search);
+    const matchSearch = (c.name || '').toLowerCase().includes(search.toLowerCase()) || (c.phone && c.phone.includes(search));
     const matchKhand = khandFilter === 'all' || c.khandId === khandFilter;
     const matchMandal = mandalFilter === 'all' || c.mandalId === mandalFilter;
     const matchVillage = villageFilter === 'all' || c.villageId === villageFilter;
@@ -5518,7 +5668,7 @@ const ManageListMembersModal = ({ list, contacts, khands, mandals, villages, onC
                   onClick={() => toggleSelection(c.id)}
                   className={`w-full p-4 rounded-md flex items-center gap-4 border transition-all ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500' : 'bg-gray-50 dark:bg-gray-800 border-transparent dark:border-gray-700'}`}
                 >
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-medium ${isSelected ? 'bg-blue-600' : 'bg-gray-400'}`}>{c.name[0]}</div>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-medium ${isSelected ? 'bg-blue-600' : 'bg-gray-400'}`}>{(c.name || '?')[0]}</div>
                   <div className="flex-1 text-left">
                      <div className={`font-medium text-sm font-hindi ${isSelected ? 'text-blue-700 dark:text-blue-400' : 'dark:text-white'}`}>{c.name} ({villages.find((v:any)=>v.id===c.villageId)?.name})</div>
                      <div className="text-[10px] text-gray-400">{villages.find((v:any)=>v.id===c.villageId)?.name}</div>
