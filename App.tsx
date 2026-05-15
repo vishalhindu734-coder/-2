@@ -167,6 +167,12 @@ function cleanData(data: any): any {
   return data;
 }
 
+const DEBUG = (import.meta as any).env?.DEV || false;
+
+function log(...args: any[]) {
+  if (DEBUG) console.log(...args);
+}
+
 function useDataSync<T extends {id: string}>(
   collectionName: string,
   localData: T[],
@@ -176,24 +182,29 @@ function useDataSync<T extends {id: string}>(
   const isInternalUpdate = useRef(false);
   const prevData = useRef<T[] | null>(null);
   const isFirstLoad = useRef(true);
+  
+  // KEY FIX: Keep a stable ref to the latest localData to avoid stale closures
+  const localDataRef = useRef<T[]>(localData);
+  useEffect(() => { localDataRef.current = localData; });
 
   useEffect(() => {
     if (!appUser?.uid) return;
     
-    console.log(`[useDataSync] Subscribing to ${collectionName}...`);
+    log(`[sync] Subscribing to ${collectionName}`);
     const unsub = onSnapshot(collection(db, collectionName), async (snap) => {
       const data = snap.docs.map(d => d.data() as T);
-      console.log(`[useDataSync] ${collectionName} received snapshot with ${data.length} items`);
       
       // If collection is empty but we have local initial data, populate it FIRST
-      if (isFirstLoad.current && data.length === 0 && localData && localData.length > 0) {
-        console.log(`[useDataSync] ${collectionName} is empty in Firebase. Populating with ${localData.length} initial items...`);
-        for (const item of localData) {
-          if (item.id) {
-            await setDoc(doc(db, collectionName, item.id), cleanData(item), {merge: true})
-              .catch(e => handleFirestoreError(e, OperationType.WRITE, `${collectionName}/${item.id}`));
-          }
-        }
+      if (isFirstLoad.current && data.length === 0 && localDataRef.current.length > 0) {
+        log(`[sync] Seeding ${collectionName} with ${localDataRef.current.length} items`);
+        await Promise.all(
+          localDataRef.current
+            .filter(item => item.id)
+            .map(item =>
+              setDoc(doc(db, collectionName, item.id), cleanData(item), { merge: true })
+                .catch(e => handleFirestoreError(e, OperationType.WRITE, `${collectionName}/${item.id}`))
+            )
+        );
         isFirstLoad.current = false;
         return; // The setDoc calls will re-trigger onSnapshot
       }
@@ -207,44 +218,52 @@ function useDataSync<T extends {id: string}>(
         prevData.current = data;
       }, 50);
     }, (error) => {
-      console.error(`[useDataSync] Error in ${collectionName}:`, error);
+      console.error(`[sync] Error in ${collectionName}:`, error);
       handleFirestoreError(error, OperationType.LIST, collectionName);
     });
 
     return () => unsub();
-  }, [appUser, collectionName]); // Do NOT depend on setLocalData/localData
+  }, [appUser?.uid, collectionName]); // Do NOT depend on setLocalData/localData
 
   useEffect(() => {
     if (!appUser?.uid || isFirstLoad.current || isInternalUpdate.current || !prevData.current) return;
 
-    console.log(`[useDataSync] Local changes detected in ${collectionName}, computing diff...`);
     const oldMap = new Map((prevData.current || []).map(i => [i.id, i]));
     const newMap = new Map((localData || []).map(i => [i.id, i]));
+
+    const writes: Promise<void>[] = [];
 
     for (const [id, item] of newMap) {
       if (!id) continue;
       const oldItem = oldMap.get(id);
       if (!oldItem || JSON.stringify(cleanData(oldItem)) !== JSON.stringify(cleanData(item))) {
-        console.log(`[useDataSync] Writing updated/new item to ${collectionName}/${id}`);
-        setDoc(doc(db, collectionName, id), cleanData(item), {merge: true})
-          .catch(e => handleFirestoreError(e, OperationType.WRITE, `${collectionName}/${id}`));
+        writes.push(
+          setDoc(doc(db, collectionName, id), cleanData(item), {merge: true})
+            .catch(e => handleFirestoreError(e, OperationType.WRITE, `${collectionName}/${id}`))
+        );
       }
     }
     
     for (const id of oldMap.keys()) {
       if (!id) continue;
       if (!newMap.has(id)) {
-        console.log(`[useDataSync] Deleting item ${collectionName}/${id}`);
-        deleteDoc(doc(db, collectionName, id))
-          .catch(e => handleFirestoreError(e, OperationType.DELETE, `${collectionName}/${id}`));
+        writes.push(
+          deleteDoc(doc(db, collectionName, id))
+            .catch(e => handleFirestoreError(e, OperationType.DELETE, `${collectionName}/${id}`))
+        );
       }
     }
 
     prevData.current = localData;
-  }, [localData, appUser, collectionName]);
+    if (writes.length > 0) Promise.all(writes);
+  }, [localData, appUser?.uid, collectionName]);
 }
 
+import { useToast } from './components/toast';
+
 const App: React.FC = () => {
+  const { showToast, showConfirm } = useToast();
+  
   // Auth State
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
@@ -304,9 +323,6 @@ const App: React.FC = () => {
   const [dashMandal, setDashMandal] = useState<string>('all');
 
   // Helpers
-  const getKhandName = (id: string) => khands.find(k => k.id === id)?.name || id;
-  const getMandalName = (id: string) => mandals.find(m => m.id === id)?.name || id;
-  const getVillageName = (id: string) => villages.find(v => v.id === id)?.name || id;
   const [dashStage, setDashStage] = useState<string>('all');
   const [peopleSearch, setPeopleSearch] = useState('');
   const [listCategoryFilter, setListCategoryFilter] = useState<string | 'all'>('all');
@@ -342,17 +358,26 @@ const App: React.FC = () => {
     if (!appUser.areaPermissions) return true;
     const v = villagesRaw.find(v => v.id === vid);
     if (!v) return false;
-    return (appUser.areaPermissions.villageIds || []).includes(vid) || (appUser.areaPermissions.mandalIds || []).includes(v.mandalId) || (appUser.areaPermissions.khandIds || []).includes(villagesRaw.find(v=>v.id === vid)?.mandalId ? mandalsRaw.find(m=>m.id === v.mandalId)?.khandId || '' : '');
+    const mandalKhandId = mandalsRaw.find(m => m.id === v.mandalId)?.khandId || '';
+    return (
+      (appUser.areaPermissions.villageIds || []).includes(vid) ||
+      (appUser.areaPermissions.mandalIds || []).includes(v.mandalId) ||
+      (appUser.areaPermissions.khandIds || []).includes(mandalKhandId)
+    );
   };
 
-  const khands = khandsRaw.filter(k => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (appUser.areaPermissions.khandIds || []).includes(k.id));
-  const mandals = mandalsRaw.filter(m => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (appUser.areaPermissions.mandalIds || []).includes(m.id) || (appUser.areaPermissions.khandIds || []).includes(m.khandId));
-  const villages = villagesRaw.filter(v => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (appUser.areaPermissions.villageIds || []).includes(v.id) || (appUser.areaPermissions.mandalIds || []).includes(v.mandalId) || (appUser.areaPermissions.khandIds || []).includes(mandalsRaw.find(m=>m.id === v.mandalId)?.khandId || ''));
-  const contacts = contactsRaw.filter(c => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (appUser.areaPermissions.villageIds || []).includes(c.villageId) || (appUser.areaPermissions.mandalIds || []).includes(c.mandalId) || (appUser.areaPermissions.khandIds || []).includes(c.khandId));
-  const trips = tripsRaw.filter(t => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (appUser.areaPermissions.khandIds || []).includes(t.khandId) || (appUser.areaPermissions.mandalIds || []).includes(t.mandalId) || (t.villageIds || []).some(vid => (appUser.areaPermissions!.villageIds || []).includes(vid)));
-  const customLists = customListsRaw.filter(l => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (l.peopleIds || []).some(pid => contacts.some(fc => fc.id === pid)));
-  const meetings = meetingsRaw.filter(m => appUser?.roleId === 'admin' || !appUser?.areaPermissions || customLists.some(fl => fl.id === m.listId));
-  const ideas = ideasRaw.filter(i => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (!i.khandId && !i.mandalId && !i.villageId && !i.contactId) || (i.khandId && (appUser.areaPermissions.khandIds || []).includes(i.khandId)) || (i.mandalId && (appUser.areaPermissions.mandalIds || []).includes(i.mandalId)) || (i.villageId && (appUser.areaPermissions.villageIds || []).includes(i.villageId)) || (i.contactId && contacts.some(c => c.id === i.contactId)));
+  const khands = useMemo(() => khandsRaw.filter(k => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (appUser.areaPermissions.khandIds || []).includes(k.id)), [khandsRaw, appUser]);
+  const mandals = useMemo(() => mandalsRaw.filter(m => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (appUser.areaPermissions.mandalIds || []).includes(m.id) || (appUser.areaPermissions.khandIds || []).includes(m.khandId)), [mandalsRaw, appUser]);
+  const villages = useMemo(() => villagesRaw.filter(v => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (appUser.areaPermissions.villageIds || []).includes(v.id) || (appUser.areaPermissions.mandalIds || []).includes(v.mandalId) || (appUser.areaPermissions.khandIds || []).includes(mandalsRaw.find(m=>m.id === v.mandalId)?.khandId || '')), [villagesRaw, mandalsRaw, appUser]);
+  const contacts = useMemo(() => contactsRaw.filter(c => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (appUser.areaPermissions.villageIds || []).includes(c.villageId) || (appUser.areaPermissions.mandalIds || []).includes(c.mandalId) || (appUser.areaPermissions.khandIds || []).includes(c.khandId)), [contactsRaw, appUser]);
+  const trips = useMemo(() => tripsRaw.filter(t => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (appUser.areaPermissions.khandIds || []).includes(t.khandId) || (appUser.areaPermissions.mandalIds || []).includes(t.mandalId) || (t.villageIds || []).some(vid => (appUser.areaPermissions!.villageIds || []).includes(vid))), [tripsRaw, appUser]);
+  const customLists = useMemo(() => customListsRaw.filter(l => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (l.peopleIds || []).some(pid => contacts.some(fc => fc.id === pid))), [customListsRaw, contacts, appUser]);
+  const meetings = useMemo(() => meetingsRaw.filter(m => appUser?.roleId === 'admin' || !appUser?.areaPermissions || customLists.some(fl => fl.id === m.listId)), [meetingsRaw, customLists, appUser]);
+  const ideas = useMemo(() => ideasRaw.filter(i => appUser?.roleId === 'admin' || !appUser?.areaPermissions || (!i.khandId && !i.mandalId && !i.villageId && !i.contactId) || (i.khandId && (appUser.areaPermissions.khandIds || []).includes(i.khandId)) || (i.mandalId && (appUser.areaPermissions.mandalIds || []).includes(i.mandalId)) || (i.villageId && (appUser.areaPermissions.villageIds || []).includes(i.villageId)) || (i.contactId && contacts.some(c => c.id === i.contactId))), [ideasRaw, contacts, appUser]);
+
+  const getKhandName = useCallback((id: string) => khands.find(k => k.id === id)?.name || id, [khands]);
+  const getMandalName = useCallback((id: string) => mandals.find(m => m.id === id)?.name || id, [mandals]);
+  const getVillageName = useCallback((id: string) => villages.find(v => v.id === id)?.name || id, [villages]);
 
   useDataSync('contacts', contactsRaw as any[], setContacts as any, appUser);
   useDataSync('khands', khandsRaw as any[], setKhands as any, appUser);
@@ -501,7 +526,7 @@ const App: React.FC = () => {
       groups[kId].mandals[mId].villages[vId].contacts.push(c);
     });
     return groups;
-  }, [filteredPeople, khands, mandals, villages]);
+  }, [filteredPeople, getKhandName, getMandalName, getVillageName]);
 
   const [exportTarget, setExportTarget] = useState<{data: any[], title: string, isGeneric?: boolean} | null>(null);
   const handleTabChange = (tab: Tab) => {
@@ -556,19 +581,37 @@ const App: React.FC = () => {
     localStorage.setItem('khands', JSON.stringify(khands));
     localStorage.setItem('mandals', JSON.stringify(mandals));
     localStorage.setItem('villages', JSON.stringify(villages));
+  }, [khands, mandals, villages]);
+
+  useEffect(() => {
     localStorage.setItem('contacts', JSON.stringify(contacts));
+  }, [contacts]);
+
+  useEffect(() => {
     localStorage.setItem('trips', JSON.stringify(trips));
     localStorage.setItem('tripViewMode', JSON.stringify(tripViewMode));
+  }, [trips, tripViewMode]);
+
+  useEffect(() => {
     localStorage.setItem('categories', JSON.stringify(categories));
     localStorage.setItem('eventCategories', JSON.stringify(eventCategories));
     localStorage.setItem('listCategories', JSON.stringify(listCategories));
+  }, [categories, eventCategories, listCategories]);
+
+  useEffect(() => {
     localStorage.setItem('customLists', JSON.stringify(customLists));
     localStorage.setItem('meetings', JSON.stringify(meetings));
     localStorage.setItem('ideas', JSON.stringify(ideas));
     localStorage.setItem('events', JSON.stringify(events));
+  }, [customLists, meetings, ideas, events]);
+
+  useEffect(() => {
     localStorage.setItem('userName', JSON.stringify(userName));
     localStorage.setItem('callRecords', JSON.stringify(callRecords));
     localStorage.setItem('whatsappMessage', JSON.stringify(whatsappMessage));
+  }, [userName, callRecords, whatsappMessage]);
+
+  useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(darkMode));
     localStorage.setItem('appTheme', JSON.stringify(appTheme));
     localStorage.setItem('appFont', JSON.stringify(appFont));
@@ -878,7 +921,7 @@ const App: React.FC = () => {
       try {
         const data = JSON.parse(e.target?.result as string);
         
-        alert('डेटा पढ़ा जा रहा है, और सर्वर के साथ सिंक हो रहा है। कृपया प्रतीक्षा करें...');
+        showToast('डेटा पढ़ा जा रहा है, और सर्वर के साथ सिंक हो रहा है। कृपया प्रतीक्षा करें...', 'info');
 
         const processCollection = async (collName: string, items: any[]) => {
           if (!items || !Array.isArray(items)) return;
@@ -918,10 +961,10 @@ const App: React.FC = () => {
         if (data.events) { setEvents(data.events); localStorage.setItem('events', JSON.stringify(data.events)); }
         if (data.userName) { setUserName(data.userName); localStorage.setItem('userName', JSON.stringify(data.userName)); }
         
-        alert('डेटा सफलतापूर्वक रिस्टोर और सिंक हो गया है!');
-        window.location.reload();
+        showToast('डेटा सफलतापूर्वक रिस्टोर और सिंक हो गया है!', 'success');
+        setTimeout(() => window.location.reload(), 1500);
       } catch (err: any) {
-        alert('डेटा रिस्टोर करने में त्रुटि हुई: ' + (err.message || String(err)));
+        showToast('डेटा रिस्टोर करने में त्रुटि हुई: ' + (err.message || String(err)), 'error');
         console.error("Import Error:", err);
       }
     };
@@ -941,12 +984,12 @@ const App: React.FC = () => {
         if (newVillages.length > 0) setVillages(prev => [...prev, ...newVillages]);
         
         setContacts(prev => [...prev, ...importedContacts]);
-        alert(`${importedContacts.length} स्वयंसेवक सफलतापूर्वक आयात किए गए!`);
+        showToast(`${importedContacts.length} स्वयंसेवक सफलतापूर्वक आयात किए गए!`, 'success');
       } else {
-        alert('कोई वैध डेटा नहीं मिला।');
+        showToast('कोई वैध डेटा नहीं मिला।', 'warning');
       }
     } catch (err) {
-      alert('एक्सेल फाइल पढ़ने में त्रुटि हुई।');
+      showToast('एक्सेल फाइल पढ़ने में त्रुटि हुई।', 'error');
     }
     event.target.value = '';
   };
@@ -1248,9 +1291,11 @@ const App: React.FC = () => {
                   <button 
                        onClick={(e) => {
                            e.stopPropagation();
-                           if (confirm(`क्या आप '${m.title}' कार्यक्रम को हटाना चाहते हैं?`)) {
-                               setMeetings(prev => prev.filter(meet => meet.id !== m.id));
-                           }
+                           showConfirm(
+                             'कार्यक्रम हटाएँ',
+                             `क्या आप '${m.title}' कार्यक्रम को हटाना चाहते हैं?`,
+                             () => setMeetings(prev => prev.filter(meet => meet.id !== m.id))
+                           );
                        }}
                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-all cursor-pointer"
                    >
@@ -2600,6 +2645,7 @@ const App: React.FC = () => {
       if (loginUsername === 'admin' && loginPassword === 'admin') {
         try {
           await signInWithUsername(loginUsername, loginPassword, keepSignedIn);
+          setIsLoggingIn(false);
         } catch (authError: any) {
           // If the admin user doesn't exist, create it auto
           if (authError.code === 'auth/user-not-found' || authError.code === 'auth/invalid-credential') {
@@ -2614,6 +2660,7 @@ const App: React.FC = () => {
                  }
                }, { merge: true });
                await signInWithUsername(loginUsername, loginPassword, keepSignedIn);
+               setIsLoggingIn(false);
              } catch (createErr) {
                console.error("Failed to auto-create admin", createErr);
                setLoginError('Invalid configuration or failed to create admin user.');
@@ -2624,6 +2671,7 @@ const App: React.FC = () => {
         }
       } else {
         await signInWithUsername(loginUsername, loginPassword, keepSignedIn);
+        setIsLoggingIn(false);
       }
     } catch (error: any) {
       console.error(error);
@@ -2652,6 +2700,7 @@ const App: React.FC = () => {
                   type="text" 
                   value={loginUsername}
                   onChange={e => setLoginUsername(e.target.value)}
+                  autoComplete="username"
                   className="w-full p-3 bg-white/10 border border-white/20 rounded-xl outline-none text-white placeholder-white/40 focus:border-white/50"
                   placeholder="admin"
                   required
@@ -2663,6 +2712,7 @@ const App: React.FC = () => {
                   type="password" 
                   value={loginPassword}
                   onChange={e => setLoginPassword(e.target.value)}
+                  autoComplete="current-password"
                   className="w-full p-3 bg-white/10 border border-white/20 rounded-xl outline-none text-white placeholder-white/40 focus:border-white/50"
                   placeholder="••••••••"
                   required
@@ -2899,7 +2949,7 @@ const App: React.FC = () => {
               whatsappMessage={whatsappMessage}
               onEdit={() => setEditingContact(contacts.find(c => c.id === appUser?.linkedContactId)!)}
               onEditVisitHistory={(h: any) => setIsEditingVisit({ contactId: appUser?.linkedContactId, history: h })}
-              onDeleteVisitHistory={(hId: string) => handleDeleteVisitHistory(appUser?.linkedContactId, hId)}
+              onDeleteVisitHistory={(hId: string) => appUser?.linkedContactId && handleDeleteVisitHistory(appUser.linkedContactId, hId)}
             />
           </div>
         )}
@@ -2958,11 +3008,11 @@ const App: React.FC = () => {
        </div>
        <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-blue-500/30 to-transparent"></div>
         
-       <NavBtn active={activeTab === 'home'} onClick={() => handleTabChange('home')} icon={<Home />} />
-       <NavBtn active={activeTab === 'people' || activeTab === 'swayamsevak'} onClick={() => handleTabChange('people')} icon={<UsersRound />} />
-       <NavBtn active={activeTab === 'activities'} onClick={() => handleTabChange('activities')} icon={<Rocket />} />
-       <NavBtn active={activeTab === 'calendar'} onClick={() => handleTabChange('calendar')} icon={<CalendarIcon />} />
-        <NavBtn active={activeTab === 'menu'} onClick={() => handleTabChange('menu')} icon={<MenuIcon />} />
+       <NavBtn active={activeTab === 'home'} onClick={() => handleTabChange('home')} icon={<Home />} label="होम" />
+       <NavBtn active={activeTab === 'people' || activeTab === 'swayamsevak'} onClick={() => handleTabChange('people')} icon={<UsersRound />} label="संपर्क" />
+       <NavBtn active={activeTab === 'activities'} onClick={() => handleTabChange('activities')} icon={<Rocket />} label="गतिविधि" />
+       <NavBtn active={activeTab === 'calendar'} onClick={() => handleTabChange('calendar')} icon={<CalendarIcon />} label="योजना" />
+        <NavBtn active={activeTab === 'menu'} onClick={() => handleTabChange('menu')} icon={<MenuIcon />} label="मेनू" />
       </nav>
 
       <SuccessOverlay isVisible={showSuccessOverlay} onClose={() => setShowSuccessOverlay(false)} />
@@ -3367,10 +3417,10 @@ const TripCalendar = ({ trips, viewType, setViewType, currentDate, setCurrentDat
   );
 };
 
-const NavBtn = ({ active, onClick, icon }: any) => (
+const NavBtn = ({ active, onClick, icon, label }: any) => (
  <button 
     onClick={onClick} 
-    className={`flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-[1.2rem] transition-all relative group outline-none
+    className={`flex flex-col items-center justify-center w-14 h-16 sm:w-16 sm:h-20 rounded-[1.2rem] transition-all relative group outline-none
       ${active ? '' : 'hover:bg-blue-500/5 dark:hover:bg-white/5'}
     `}
   >
@@ -3378,19 +3428,20 @@ const NavBtn = ({ active, onClick, icon }: any) => (
      <div className="absolute inset-0 bg-blue-500/20 dark:bg-blue-400/20 rounded-full blur-[20px] -z-10 animate-pulse"></div>
     )}
    <div className={`
-      flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-[1.1rem] transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative
+      flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 rounded-[0.9rem] transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative
       ${active 
-        ? 'bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-[0_8px_20px_-4px_rgba(37,99,235,0.5)] border border-white/20 -translate-y-2' 
+        ? 'bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-[0_8px_20px_-4px_rgba(37,99,235,0.5)] border border-white/20 -translate-y-1' 
         : 'text-gray-400 dark:text-gray-500 group-hover:scale-110 group-hover:text-blue-500'
       }
     `}>
       {active &&<div className="absolute top-[10%] left-[20%] right-[20%] h-[30%] bg-gradient-to-b from-white/30 to-transparent rounded-t-full"></div>}
-     <div className={`transition-all ${active ? 'scale-[1.1] drop-shadow-sm' : 'scale-100'}`}>
+     <div className={`transition-all ${active ? 'scale-[1] drop-shadow-sm' : 'scale-90'}`}>
          {icon}
      </div>
    </div>
+   <span className={`text-[9px] font-bold mt-1 transition-all duration-300 ${active ? 'text-blue-600 dark:text-blue-400 translate-y-0.5' : 'text-gray-400 dark:text-gray-500'}`}>{label}</span>
     {active && (
-     <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-blue-600 rounded-full shadow-[0_0_8px_rgba(37,99,235,1)]"></div>
+     <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-blue-600 rounded-full shadow-[0_0_8px_rgba(37,99,235,1)] hidden"></div>
     )}
  </button>
 );
@@ -5560,6 +5611,7 @@ const PromptModal = ({ title, placeholder, onSubmit, onCancel }: any) => {
 };
 
 const MeetingFormModal = ({ onClose, onSubmit, eventCategories, ideas, customLists, selectedListId }: any) => {
+  const { showToast } = useToast();
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [location, setLocation] = useState('');
@@ -5629,11 +5681,11 @@ const MeetingFormModal = ({ onClose, onSubmit, eventCategories, ideas, customLis
        <button 
           onClick={() => {
             if (!title.trim()) {
-              alert('कृपया विषय दर्ज करें');
+              showToast('कृपया विषय दर्ज करें', 'warning');
               return;
             }
             if (!date) {
-              alert('कृपया तारीख दर्ज करें');
+              showToast('कृपया तारीख दर्ज करें', 'warning');
               return;
             }
             onSubmit({ title, date, location, notes, category });
@@ -6035,6 +6087,7 @@ const CalendarTab = ({
   getKhandName,
   getVillageName
 }: any) => {
+  const { showConfirm } = useToast();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [karyasExpanded, setKaryasExpanded] = useState(false);
@@ -6302,9 +6355,11 @@ const CalendarTab = ({
                              <button 
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (confirm(`क्या आप '${k.name}' की कार्यस्थिति को हटाना चाहते हैं?`)) {
-                                    handleUpdateVillage(k.id, { stage: VillageStage.NONE, karyaDetails: undefined });
-                                  }
+                                  showConfirm(
+                                    'कार्यस्थिति हटाएँ',
+                                    `क्या आप '${k.name}' की कार्यस्थिति को हटाना चाहते हैं?`,
+                                    () => handleUpdateVillage(k.id, { stage: VillageStage.NONE, karyaDetails: undefined })
+                                  );
                                 }}
                                 className="text-gray-400 hover:text-red-500 p-1.5 active:scale-95 transition-all self-start md:opacity-0 md:group-hover:opacity-100"
                               >
@@ -6868,6 +6923,7 @@ const IdeaFormModal = ({ contacts, villages, mandals, khands, customLists, onClo
 };
 
 const BulkUpdateModal = ({ selectedCount, contacts, khands, mandals, villages, categories, onClose, onUpdate }: any) => {
+  const { showToast } = useToast();
   const [useStatus, setUseStatus] = useState(false);
   const [status, setStatus] = useState(Status.SAKRIYA);
   
@@ -6896,7 +6952,7 @@ const BulkUpdateModal = ({ selectedCount, contacts, khands, mandals, villages, c
     }
     
     if (Object.keys(updates).length === 0) {
-      alert('कृपया कम से कम एक फ़ील्ड चुनें जिसे आप अपडेट करना चाहते हैं।');
+      showToast('कृपया कम से कम एक फ़ील्ड चुनें जिसे आप अपडेट करना चाहते हैं।', 'warning');
       return;
     }
     
