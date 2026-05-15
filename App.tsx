@@ -14,6 +14,8 @@ import {
   Phone, 
   CheckCircle2, 
   ArrowLeft,
+  AlertCircle,
+  Info,
   Search,
   Trash2,
   Moon,
@@ -127,7 +129,7 @@ import { doc, getDoc, setDoc, deleteDoc, updateDoc, collection, onSnapshot, getD
 import { AppUser, AppRole, Permission, EventModel } from './types';
 import { calculateAge, getAgeCategory, getHighestShikshan, isShikshit } from './dataUtils';
 
-type Tab = 'home' | 'swayamsevak' | 'people' | 'trips' | 'lists' | 'groups' | 'work-status' | 'menu' | 'area-mgmt' | 'cat-mgmt' | 'list-cat-mgmt' | 'calendar' | 'event-cat-mgmt' | 'activities' | 'ideas' | 'events' | 'event-detail' | 'settings' | 'reports' | 'admin';
+type Tab = 'home' | 'swayamsevak' | 'people' | 'trips' | 'lists' | 'groups' | 'work-status' | 'menu' | 'area-mgmt' | 'cat-mgmt' | 'list-cat-mgmt' | 'calendar' | 'event-cat-mgmt' | 'activities' | 'ideas' | 'events' | 'event-detail' | 'settings' | 'reports' | 'admin' | 'profile';
 
 
 interface Idea {
@@ -2884,6 +2886,23 @@ const App: React.FC = () => {
         {activeTab === 'cat-mgmt' &&<CatMgmt categories={categories} setCategories={setCategories} onBack={()=>setActiveTab('settings')} setConfirmation={setConfirmation} />}
         {activeTab === 'event-cat-mgmt' &&<CatMgmt title="कार्यक्रम श्रेणी प्रबंधन" categories={eventCategories} setCategories={setEventCategories} onBack={()=>setActiveTab('settings')} setConfirmation={setConfirmation} />}
         {activeTab === 'list-cat-mgmt' &&<CatMgmt title="सूची श्रेणी प्रबंधन" categories={listCategories} setCategories={setListCategories} onBack={()=>setActiveTab('settings')} setConfirmation={setConfirmation} />}
+        {activeTab === 'profile' && (
+          <div className="h-full w-full relative">
+            <ProfileView 
+              appUser={appUser} 
+              contacts={contacts} 
+              onBack={() => setActiveTab('menu')}
+              khands={khands}
+              mandals={mandals}
+              villages={villages}
+              categories={categories}
+              whatsappMessage={whatsappMessage}
+              onEdit={() => setEditingContact(contacts.find(c => c.id === appUser?.linkedContactId)!)}
+              onEditVisitHistory={(h: any) => setIsEditingVisit({ contactId: appUser?.linkedContactId, history: h })}
+              onDeleteVisitHistory={(hId: string) => handleDeleteVisitHistory(appUser?.linkedContactId, hId)}
+            />
+          </div>
+        )}
         {activeTab === 'admin' && (
           <div className="h-full overflow-y-auto w-full bg-slate-50 dark:bg-[#070b14]">
             <AdminPanel khands={khands} mandals={mandals} villages={villages} contacts={contacts} />
@@ -5273,6 +5292,112 @@ const GridMenuItem = ({ icon: Icon, label, color, onClick, delay = 0, variant = 
   );
 };
 
+const ProfileView = ({ appUser, contacts, onBack, khands, mandals, villages, categories, onEdit, onEditVisitHistory, onDeleteVisitHistory, whatsappMessage }: any) => {
+  const linkedContact = appUser?.linkedContactId ? contacts?.find((c: any) => c.id === appUser.linkedContactId) : null;
+  
+  return (
+    <div className="flex flex-col h-full bg-slate-50 dark:bg-[#070b14] animate-in slide-in-from-right duration-300 w-full overflow-hidden">
+      <header className="bg-white/80 dark:bg-[#0c1222]/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 p-4 sticky top-0 z-50 flex items-center gap-3">
+         <button onClick={onBack} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-all active:scale-95">
+           <ArrowLeft size={20} className="dark:text-white" />
+         </button>
+         <h2 className="text-xl font-bold dark:text-white font-hindi">प्रोफ़ाइल विवरण</h2>
+      </header>
+      
+      <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
+         {linkedContact ? (
+            <div className="max-w-2xl mx-auto space-y-4">
+              <div className="bg-white/40 dark:bg-[#080d19]/40 backdrop-blur-2xl border-b border-gray-100 dark:border-gray-800 p-6 flex flex-col items-center">
+                 <div className="relative">
+                    <div className="w-24 h-24 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-xl border-4 border-white dark:border-gray-800">
+                      {(linkedContact.name || '?')[0]}
+                    </div>
+                    <div className="absolute bottom-1 right-1 w-6 h-6 bg-green-500 border-4 border-white dark:border-gray-800 rounded-full shadow-sm"></div>
+                 </div>
+                 <h3 className="mt-4 text-2xl font-bold dark:text-white font-hindi">{linkedContact.name}</h3>
+                 <p className="text-sm text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest mt-1">
+                   {linkedContact.volunteerProfile?.currentResponsibility || 'स्वयंसेवक'}
+                 </p>
+                 
+                 <div className="grid grid-cols-2 gap-4 w-full mt-8 p-4 bg-white/50 dark:bg-black/20 rounded-2xl border border-gray-100 dark:border-gray-800">
+                    <div className="text-center">
+                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-hindi">अंतिम लॉगिन</p>
+                       <p className="text-sm font-bold dark:text-gray-100 mt-1">
+                         {appUser?.lastSeen ? new Date(appUser.lastSeen).toLocaleTimeString('hi-IN', { hour: '2-digit', minute: '2-digit' }) : 'अभी'}
+                       </p>
+                    </div>
+                    <div className="text-center border-l dark:border-gray-800">
+                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-hindi">लॉगिन तारीख</p>
+                       <p className="text-sm font-bold dark:text-gray-100 mt-1">
+                         {appUser?.lastSeen ? new Date(appUser.lastSeen).toLocaleDateString('hi-IN') : 'आज'}
+                       </p>
+                    </div>
+                 </div>
+              </div>
+
+              <ContactProfile 
+                contact={linkedContact}
+                khands={khands} mandals={mandals} villages={villages} categories={categories}
+                onBack={onBack}
+                isRecentlyCalled={false}
+                onDial={() => {}}
+                whatsappMessage={whatsappMessage}
+                onVillageClick={() => {}}
+                onDelete={() => {}}
+                onEdit={onEdit}
+                onLogVisit={() => {}}
+                onEditVisitHistory={onEditVisitHistory}
+                onDeleteVisitHistory={onDeleteVisitHistory}
+              />
+            </div>
+         ) : (
+           <div className="p-6 space-y-6 max-w-md mx-auto">
+              <div className="bg-white dark:bg-[#0f172a] p-8 rounded-3xl border border-gray-100 dark:border-white/5 shadow-sm relative overflow-hidden">
+                 <div className="absolute -top-10 -right-10 w-32 h-32 bg-blue-600/10 rounded-full blur-3xl"></div>
+                 <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center text-white mb-6 mx-auto shadow-xl">
+                   <User size={40} />
+                 </div>
+                 <div className="text-center">
+                    <h3 className="text-xl font-bold dark:text-white leading-tight">{appUser?.displayName || appUser?.email || 'User'}</h3>
+                    <p className="text-xs text-gray-500 mt-1 break-all">{appUser?.email}</p>
+                 </div>
+                 
+                 <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 space-y-4">
+                    <div className="flex items-center justify-between">
+                       <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-hindi">अंतिम लॉगिन</span>
+                          <span className="text-xs font-bold dark:text-gray-200 mt-0.5">
+                            {appUser?.lastSeen ? new Date(appUser.lastSeen).toLocaleString('hi-IN') : 'जानकारी उपलब्ध नहीं'}
+                          </span>
+                       </div>
+                       <Clock size={16} className="text-gray-300" />
+                    </div>
+                    <div className="flex items-center justify-between">
+                       <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-hindi">यूजर आईडी</span>
+                          <span className="text-[9px] font-mono text-gray-400 mt-0.5">{appUser?.uid}</span>
+                       </div>
+                       <ShieldCheck size={16} className="text-gray-300" />
+                    </div>
+                 </div>
+              </div>
+              
+              <div className="bg-amber-50 dark:bg-amber-900/20 p-5 rounded-2xl border border-amber-200 dark:border-amber-800/40 shadow-sm">
+                 <div className="flex gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-600 shrink-0 shadow-sm"><AlertCircle size={22}/></div>
+                    <div className="flex-1">
+                       <h4 className="font-bold text-amber-900 dark:text-amber-200 text-sm font-hindi">संपर्क लिंक नहीं है</h4>
+                       <p className="text-xs text-amber-700 dark:text-amber-300 mt-1 font-hindi leading-relaxed opacity-90">आपका यूजर अकाउंट किसी स्वयंसेवक संपर्क से लिंक नहीं है। विस्तृत जानकारी देखने के लिए कृपया एडमिन से अपना अकाउंट लिंक करवाएं।</p>
+                    </div>
+                 </div>
+              </div>
+           </div>
+         )}
+      </div>
+    </div>
+  );
+};
+
 const MenuTab = ({ userName, setUserName, appUser, hasPermission, setActiveTab, contacts = [] }: any) => {
   const linkedContact = appUser?.linkedContactId ? contacts?.find((c: any) => c.id === appUser.linkedContactId) : null;
   const displayRole = linkedContact?.volunteerProfile?.currentResponsibility 
@@ -5288,23 +5413,21 @@ const MenuTab = ({ userName, setUserName, appUser, hasPermission, setActiveTab, 
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center gap-3 justify-between"
         >
-          <div className="flex items-center gap-3">
+          <button onClick={() => setActiveTab('profile')} className="flex items-center gap-3 hover:bg-black/5 dark:hover:bg-white/5 p-1 rounded-xl transition-all">
             <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shrink-0">
               <User size={20} />
             </div>
-            <div className="flex-1 min-w-0">
-              <input 
+            <div className="flex-1 min-w-0 text-left">
+              <div 
                 className="bg-transparent font-black text-gray-900 dark:text-gray-100 text-base w-full outline-none placeholder:text-gray-400 font-hindi truncate" 
-                value={linkedContact ? linkedContact.name : (appUser ? appUser.displayName || appUser.email : userName)} 
-                onChange={e => setUserName(e.target.value)}
-                readOnly={!!appUser}
-                placeholder="नमो नमः..."
-              />
+              >
+                {linkedContact ? linkedContact.name : (appUser ? appUser.displayName || appUser.email : userName)} 
+              </div>
               <p className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] leading-none truncate pr-2">
                 {displayRole}
               </p>
             </div>
-          </div>
+          </button>
           <div>
             {appUser ? (
               <button onClick={() => logout()} className="text-xs font-bold text-red-500 bg-red-50 dark:bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-900/30">
